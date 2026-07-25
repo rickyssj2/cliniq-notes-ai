@@ -1,1 +1,109 @@
-## Soulside AI - Assignment
+# Soulside AI — Clinical Notes Workflow
+
+Frontend take-home: AI-assisted clinical notes review SPA.
+
+## Quick start
+
+```bash
+pnpm install
+pnpm dev
+```
+
+- Web: http://localhost:5173
+- API health: http://localhost:3001/api/health (also proxied at `/api/health`)
+
+## Workspace
+
+| Package | Role |
+|---|---|
+| `apps/web` | Vite + React SPA (Feature-Sliced Design) |
+| `apps/api` | Hono mock REST + (later) WebSocket |
+| `packages/domain` | Shared types + pure `noteMachine` |
+
+### Web FSD layout
+
+```
+apps/web/src/
+  app/         # providers, styles, shell
+  pages/       # routable screens
+  widgets/     # composite UI blocks
+  features/    # user-facing capabilities
+  entities/    # business entities
+  shared/      # ui, api, db (Dexie), config, lib
+```
+
+Import rule: layers only depend downward (`app` → `pages` → `widgets` → `features` → `entities` → `shared`).
+
+## Design decisions
+
+Filled in as phases land. Required by the assignment:
+
+### State Topology — Where state lives
+
+_In progress. So far:_
+- **Pure domain (`packages/domain`)** — lifecycle invariants via `noteMachine` (no React, no I/O)
+- **Planned:** TanStack Query (server entities), Zustand (client UI), Dexie (durable queues), URL (filters)
+
+### State Machine — How the note lifecycle is modelled
+
+Implemented as a pure module in [`packages/domain/src/note-machine`](packages/domain/src/note-machine):
+
+- **Transition table** (`TRANSITIONS`) is the single source of truth for legal edges and guards
+- **`can` / `transition`** validate user intent before any API call
+- **`applyServerStatusChange`** runs real-time / authoritative status pushes through the same table (`source: "server"` trusts MFA already happened)
+- **`getAvailableActions`** drives the action bar — disabled buttons carry human-readable `reason` strings (e.g. "You are not the assigned reviewer")
+- Invalid transitions are rejected in one place; UI must not hard-code status `if` checks
+
+Happy path: `GENERATING → READY_FOR_REVIEW → IN_REVIEW → APPROVED → LOCKED` (plus `FAILED`, `REJECTED`, `AMENDED` branches).
+
+```bash
+pnpm --filter @soulside/domain test
+```
+
+### Optimistic Updates — Apply and roll back
+
+_Pending — Phases 4–6._
+
+### Concurrency — Version conflicts without data loss
+
+_Pending — Phase 6._
+
+### Offline — Write queue survives reloads
+
+_Pending — Phase 8 (Dexie)._
+
+### Real-Time — Reconcile channel with optimistic state
+
+_Pending — Phase 7._
+
+### Telemetry — Batch, retry, unload, PII redaction
+
+_Pending — Phase 10._
+
+### Scale — List/detail/history at 100k+ notes
+
+_Pending — Phase 4 (TanStack Virtual + cursor pagination)._
+
+### Testing — Unit, integration, e2e posture
+
+- **Unit (done):** 32 Vitest cases for every legal/illegal edge, guard failure reasons, grace window, server-driven path, READONLY_AUDITOR, and `getAvailableActions`
+- **Integration / e2e:** deferred to later phases
+
+### Accessibility — Keyboard, SR, WCAG 2.2 AA
+
+_Pending — built on shadcn/Radix primitives; posture documented by Phase 11._
+
+## Phase status
+
+- [x] Phase 0 — Scaffold & contracts
+- [x] Phase 1 — Domain state machine
+- [ ] Phase 2 — Dummy backend
+- [ ] Phase 3 — Auth shell + Query plumbing
+- [ ] Phase 4 — Virtualized notes list
+- [ ] Phase 5 — Note detail + SOAP editor
+- [ ] Phase 6 — Autosave & conflicts
+- [ ] Phase 7 — Real-time
+- [ ] Phase 8 — Offline queue
+- [ ] Phase 9 — Version history
+- [ ] Phase 10 — Telemetry
+- [ ] Phase 11 — Simulation, tests, README polish

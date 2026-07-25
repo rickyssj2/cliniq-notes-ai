@@ -1,0 +1,17 @@
+{
+  "name": "soulside-ai",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @soulside/web --filter @soulside/api run dev",
+    "dev:web": "pnpm --filter @soulside/web dev",
+    "dev:api": "pnpm --filter @soulside/api dev",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
