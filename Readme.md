@@ -17,7 +17,7 @@ pnpm dev
 | Package | Role |
 |---|---|
 | `apps/web` | Vite + React SPA (Feature-Sliced Design) |
-| `apps/api` | Hono mock REST + (later) WebSocket |
+| `apps/api` | Hono mock REST + WebSocket + deterministic seed |
 | `packages/domain` | Shared types + pure `noteMachine` |
 
 ### Web FSD layout
@@ -66,7 +66,7 @@ _Pending — Phases 4–6._
 
 ### Concurrency — Version conflicts without data loss
 
-_Pending — Phase 6._
+_Server side (Phase 2):_ `POST /api/notes/:id/versions` requires `baseVersionId`; mismatch (or chaos injection) returns `409 version_conflict` with `current` + `commonAncestor`. Client merge UI lands in Phase 6. Mutations are idempotent via `clientMutationId`.
 
 ### Offline — Write queue survives reloads
 
@@ -74,7 +74,7 @@ _Pending — Phase 8 (Dexie)._
 
 ### Real-Time — Reconcile channel with optimistic state
 
-_Pending — Phase 7._
+_Server side (Phase 2):_ `ws://localhost:3001/ws` (proxied as `/ws`). Clients `subscribe` with `noteIds` + optional `lastEventId` for replay. Events: `note.status_changed`, `note.version_added`, `note.presence`. Client reconciliation lands in Phase 7.
 
 ### Telemetry — Batch, retry, unload, PII redaction
 
@@ -82,22 +82,43 @@ _Pending — Phase 10._
 
 ### Scale — List/detail/history at 100k+ notes
 
-_Pending — Phase 4 (TanStack Virtual + cursor pagination)._
+_Server side (Phase 2):_ cursor pagination on `GET /api/notes` (filters, sort, search). Client virtualization in Phase 4. Seed up to 100k via `POST /api/dev/seed`.
 
 ### Testing — Unit, integration, e2e posture
 
 - **Unit (done):** 32 Vitest cases for every legal/illegal edge, guard failure reasons, grace window, server-driven path, READONLY_AUDITOR, and `getAvailableActions`
+- **API smoke (Phase 2):** seed, list, transition, idempotent version save, 409 conflict, WebSocket subscribe/presence
 - **Integration / e2e:** deferred to later phases
 
 ### Accessibility — Keyboard, SR, WCAG 2.2 AA
 
 _Pending — built on shadcn/Radix primitives; posture documented by Phase 11._
 
+## Dummy API (Phase 2)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/health` | Store stats |
+| POST | `/api/dev/seed` | `{ count, seed? }` deterministic |
+| GET | `/api/dev/users` | Seeded actors (`dr_a`…, clinicians, …) |
+| GET | `/api/dev/ready-note` | First `READY_FOR_REVIEW` |
+| GET | `/api/notes` | Cursor + `status`, `reviewerId`, `patientId`, `q`, `sort`, `order`, `limit` |
+| GET | `/api/notes/:id` | Detail + versions + review events |
+| POST | `/api/notes/:id/versions` | `baseVersionId`, `content`, `clientMutationId` |
+| POST | `/api/notes/:id/transitions` | `{ to, actorId, reason?, mfaVerified?, clientMutationId? }` — validated by `noteMachine` |
+| WS | `/ws` | `subscribe` / `replay` / `presence.join` |
+
+Chaos (default on): 100–800ms latency, ~5% `500`, ~2% forced version conflicts. Disable with `CHAOS=0`. Auto-seed 5000 notes unless `AUTO_SEED=0`.
+
+```bash
+curl -X POST http://localhost:3001/api/dev/seed -H 'content-type: application/json' -d '{"count":5000,"seed":42}'
+```
+
 ## Phase status
 
 - [x] Phase 0 — Scaffold & contracts
 - [x] Phase 1 — Domain state machine
-- [ ] Phase 2 — Dummy backend
+- [x] Phase 2 — Dummy backend
 - [ ] Phase 3 — Auth shell + Query plumbing
 - [ ] Phase 4 — Virtualized notes list
 - [ ] Phase 5 — Note detail + SOAP editor
