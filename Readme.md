@@ -10,7 +10,17 @@ pnpm dev
 ```
 
 - Web: http://localhost:5173
+- **API Lab (Phase 2 UI):** http://localhost:5173/lab
 - API health: http://localhost:3001/api/health (also proxied at `/api/health`)
+
+### Try in UI — Phase 2
+
+1. Run `pnpm dev`, open http://localhost:5173/lab
+2. Click **Seed** (e.g. 500), then **List notes**
+3. **Connect WS**, then **Pick READY note** (or click a row)
+4. **Start review** → **Save version** → **Force 409 conflict** → **Approve** or **Reject**
+5. Watch the event log for HTTP results and live `note.*` WebSocket messages
+6. Toggle **Chaos** ON to feel latency / occasional 500s
 
 ## Workspace
 
@@ -118,7 +128,7 @@ curl -X POST http://localhost:3001/api/dev/seed -H 'content-type: application/js
 
 - [x] Phase 0 — Scaffold & contracts
 - [x] Phase 1 — Domain state machine
-- [x] Phase 2 — Dummy backend
+- [x] Phase 2 — Dummy backend (+ API Lab UI at `/lab`)
 - [ ] Phase 3 — Auth shell + Query plumbing
 - [ ] Phase 4 — Virtualized notes list
 - [ ] Phase 5 — Note detail + SOAP editor

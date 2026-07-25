@@ -1,6 +1,5 @@
+import { Link } from "react-router";
 import { NOTE_STATUSES, ROLES } from "@soulside/domain";
-import { Button } from "@shared/ui/button";
-import { config } from "@shared/config";
 
 export function HomePage() {
   return (
@@ -9,31 +8,28 @@ export function HomePage() {
         Soulside AI
       </p>
       <h1 className="text-4xl font-semibold tracking-tight text-[var(--foreground)]">
-        Clinical notes scaffold
+        Clinical notes
       </h1>
       <p className="max-w-2xl text-base text-[var(--muted)]">
-        Phase 0 is live: FSD web app, Hono API proxy, Dexie stub, shared domain
-        contracts, and baseline UI primitives. Statuses: {NOTE_STATUSES.length}.
-        Roles: {ROLES.length}.
+        Phases 0–2 are in place: FSD shell, pure note state machine ({NOTE_STATUSES.length}{" "}
+        statuses / {ROLES.length} roles), and a mock API with WebSocket. Use the API Lab
+        to exercise the backend from the browser.
       </p>
       <div className="flex flex-wrap gap-3">
-        <Button
-          type="button"
-          onClick={() => {
-            window.open(`${config.apiBaseUrl}/health`, "_blank", "noopener,noreferrer");
-          }}
+        <Link
+          to="/lab"
+          className="inline-flex h-10 items-center justify-center rounded-md bg-[var(--accent)] px-4 text-sm font-medium text-[var(--accent-foreground)]"
         >
-          Check API health
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            window.location.reload();
-          }}
+          Open API Lab
+        </Link>
+        <a
+          href="/api/health"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-10 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-medium"
         >
-          Reload shell
-        </Button>
+          API health
+        </a>
       </div>
     </main>
   );
