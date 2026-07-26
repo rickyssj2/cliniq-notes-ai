@@ -44,6 +44,9 @@ type ListQuery = {
   q?: string | null;
   sort?: "updatedAt" | "createdAt" | "status";
   order?: "asc" | "desc";
+  /** Inclusive ISO date/time bounds on updatedAt */
+  updatedFrom?: string | null;
+  updatedTo?: string | null;
 };
 
 export type TransitionBody = {
@@ -349,6 +352,18 @@ export class NoteStore {
     }
     if (query.patientId) {
       items = items.filter((n) => n.patient.id === query.patientId);
+    }
+    if (query.updatedFrom) {
+      const from = Date.parse(query.updatedFrom);
+      if (!Number.isNaN(from)) {
+        items = items.filter((n) => Date.parse(n.updatedAt) >= from);
+      }
+    }
+    if (query.updatedTo) {
+      const to = Date.parse(query.updatedTo);
+      if (!Number.isNaN(to)) {
+        items = items.filter((n) => Date.parse(n.updatedAt) <= to);
+      }
     }
     if (q) {
       items = items.filter((n) => {

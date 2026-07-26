@@ -25,6 +25,8 @@ notesRoutes.get("/", (c) => {
     q: c.req.query("q"),
     sort: (c.req.query("sort") as "updatedAt" | "createdAt" | "status") ?? "updatedAt",
     order: (c.req.query("order") as "asc" | "desc") ?? "desc",
+    updatedFrom: c.req.query("updatedFrom"),
+    updatedTo: c.req.query("updatedTo"),
   });
   return c.json(page);
 });

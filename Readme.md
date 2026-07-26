@@ -30,6 +30,16 @@ pnpm dev
 4. As **Admin Kim**: Admin + Review queue + Lab all open
 5. Reload the page — the selected actor persists (Zustand + localStorage)
 
+### Try in UI — Phase 4
+
+1. Ensure API is running (auto-seeds 5000 notes). Open http://localhost:5173/notes
+2. Scroll the list — more pages load; footer shows loaded / matching counts
+3. Toggle status chips, search (debounced), reviewer, dates — URL updates; copy/paste the URL to deep-link
+4. Click column headers (Status / Updated / Created) to sort
+5. Select rows across scroll; use **Start review** / **Request regeneration** on the sticky bulk bar (as REVIEWER/ADMIN). Watch optimistic status chips update
+6. Clear filters vs search with no matches — empty workspace vs **no results** messaging differ
+7. Click a patient name → detail stub (Phase 5)
+
 ## Workspace
 
 | Package | Role |
@@ -83,7 +93,7 @@ pnpm --filter @soulside/domain test
 
 ### Optimistic Updates — Apply and roll back
 
-_Pending — Phases 4–6._
+_Phase 4 (list):_ bulk transitions patch the TanStack Query infinite-list cache optimistically, then reconcile with the server response or roll back on failure. Editor autosave optimism lands in Phase 6.
 
 ### Concurrency — Version conflicts without data loss
 
@@ -103,7 +113,7 @@ _Pending — Phase 10._
 
 ### Scale — List/detail/history at 100k+ notes
 
-_Server side (Phase 2):_ cursor pagination on `GET /api/notes` (filters, sort, search). Client virtualization in Phase 4. Seed up to 100k via `POST /api/dev/seed`.
+_Phase 4:_ TanStack Virtual + infinite cursor query on `/notes`. Filters/sort/search URL-persisted. Seed up to 100k via `POST /api/dev/seed`. Detail/history virtualization continues in later phases.
 
 ### Testing — Unit, integration, e2e posture
 
@@ -156,7 +166,7 @@ Capabilities live in `entities/user/model/permissions.ts`. Mock actors live in `
 - [x] Phase 1 — Domain state machine
 - [x] Phase 2 — Dummy backend (+ API Lab UI at `/lab`)
 - [x] Phase 3 — Auth shell + Query plumbing
-- [ ] Phase 4 — Virtualized notes list
+- [x] Phase 4 — Virtualized notes list
 - [ ] Phase 5 — Note detail + SOAP editor
 - [ ] Phase 6 — Autosave & conflicts
 - [ ] Phase 7 — Real-time
