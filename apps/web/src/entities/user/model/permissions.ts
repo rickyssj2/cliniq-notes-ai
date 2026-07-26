@@ -2,7 +2,6 @@ import type { Role } from "@soulside/domain";
 
 export type Capability =
   | "view_notes"
-  | "access_review_queue"
   | "access_admin"
   | "access_api_lab"
   | "mutate_workflow"
@@ -18,14 +17,12 @@ const ROLE_CAPS: Record<Role, readonly Capability[]> = {
   ],
   REVIEWER: [
     "view_notes",
-    "access_review_queue",
     "access_api_lab",
     "mutate_workflow",
     "bulk_assign",
   ],
   ADMIN: [
     "view_notes",
-    "access_review_queue",
     "access_admin",
     "access_api_lab",
     "mutate_workflow",
@@ -36,7 +33,6 @@ const ROLE_CAPS: Record<Role, readonly Capability[]> = {
 
 const CAP_LABEL: Record<Capability, string> = {
   view_notes: "view notes",
-  access_review_queue: "open the review queue",
   access_admin: "open admin tools",
   access_api_lab: "open the API lab",
   mutate_workflow: "change note workflow state",

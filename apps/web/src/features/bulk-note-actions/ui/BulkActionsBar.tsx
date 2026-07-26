@@ -60,6 +60,7 @@ export function BulkActionsBar({ notesById }: Props) {
           kind === "start_review"
             ? { id: actor.id, displayName: actor.displayName, role: actor.role }
             : null,
+        approvedAt: note.approvedAt ?? null,
         updatedAt: new Date().toISOString(),
       };
       patchNote(optimistic);

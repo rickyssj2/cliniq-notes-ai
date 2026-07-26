@@ -21,13 +21,7 @@ export function HomePage() {
           <Link className="text-[var(--accent)] underline-offset-4 hover:underline" to="/notes">
             Notes
           </Link>{" "}
-          — all roles (empty data placeholder)
-        </li>
-        <li>
-          <Link className="text-[var(--accent)] underline-offset-4 hover:underline" to="/review-queue">
-            Review queue
-          </Link>{" "}
-          — REVIEWER / ADMIN
+          — all roles; filter by status for review work
         </li>
         <li>
           <Link className="text-[var(--accent)] underline-offset-4 hover:underline" to="/admin">

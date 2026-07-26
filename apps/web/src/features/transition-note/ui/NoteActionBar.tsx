@@ -1,0 +1,136 @@
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  getAvailableActions,
+  type NoteAction,
+  type NoteDetail,
+} from "@soulside/domain";
+import {
+  notesQueryKeys,
+  transitionNote,
+  usePatchNoteInLists,
+} from "@entities/note";
+import { useActor } from "@entities/user";
+import { Button } from "@shared/ui/button";
+
+const ACTION_LABEL: Record<NoteAction, string> = {
+  "generation.complete": "Generation complete",
+  "generation.error": "Generation failed",
+  regenerate: "Regenerate",
+  start_review: "Start review",
+  return: "Return to queue",
+  approve: "Approve",
+  reject: "Reject",
+  resubmit: "Resubmit",
+  amend: "Amend",
+  grace_expired: "Lock",
+};
+
+type Props = {
+  note: NoteDetail;
+};
+
+export function NoteActionBar({ note }: Props) {
+  const actor = useActor();
+  const queryClient = useQueryClient();
+  const patchList = usePatchNoteInLists();
+  const [busy, setBusy] = useState<NoteAction | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const actions = useMemo(
+    () =>
+      getAvailableActions({
+        status: note.status,
+        assignedReviewerId: note.assignedReviewer?.id ?? null,
+        approvedAt: note.approvedAt ?? null,
+        now: new Date().toISOString(),
+        actor: { id: actor.id, role: actor.role },
+        mfaVerified: true,
+        reason: "pending",
+      }),
+    [actor.id, actor.role, note.approvedAt, note.assignedReviewer?.id, note.status],
+  );
+
+  const run = async (action: NoteAction) => {
+    setError(null);
+    let reason: string | undefined;
+    if (action === "reject") {
+      const entered = window.prompt("Rejection reason (required)");
+      if (!entered?.trim()) {
+        setError("A rejection reason is required");
+        return;
+      }
+      reason = entered.trim();
+    }
+    if (action === "approve") {
+      const ok = window.confirm(
+        "Approve this note? (Mock MFA: confirm stands in for re-auth.)",
+      );
+      if (!ok) return;
+    }
+
+    const target = actions.find((a) => a.action === action);
+    if (!target?.enabled) return;
+
+    setBusy(action);
+    try {
+      const result = await transitionNote({
+        noteId: note.id,
+        to: target.to,
+        actorId: actor.id,
+        reason,
+        mfaVerified: true,
+        clientMutationId: `ui_${action}_${note.id}_${crypto.randomUUID()}`,
+      });
+      patchList(result.note);
+      await queryClient.invalidateQueries({
+        queryKey: notesQueryKeys.detail(note.id),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Transition failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (note.status === "LOCKED") {
+    return (
+      <div className="rounded-lg border border-[var(--border)] bg-stone-50 px-4 py-3 text-sm text-[var(--muted)]">
+        This note is <strong>LOCKED</strong> after the 24h amendment grace
+        window. Content is read-only; start a new clinical note if changes are
+        required.
+      </div>
+    );
+  }
+
+  if (actions.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {actions.map((item) => (
+          <span key={item.action} title={item.enabled ? undefined : item.reason}>
+            <Button
+              type="button"
+              size="sm"
+              variant={item.action === "approve" ? "default" : "outline"}
+              disabled={!item.enabled || busy !== null}
+              onClick={() => void run(item.action)}
+            >
+              {busy === item.action
+                ? "Working…"
+                : ACTION_LABEL[item.action] ?? item.action}
+            </Button>
+          </span>
+        ))}
+      </div>
+      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      <p className="text-xs text-[var(--muted)]">
+        Actions come from <code>getAvailableActions</code> — hover disabled
+        buttons for the machine reason.
+      </p>
+    </div>
+  );
+}

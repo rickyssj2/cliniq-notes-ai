@@ -1,4 +1,10 @@
-import type { CursorPage, NoteDetail, NoteSummary, NoteStatus } from "@soulside/domain";
+import type {
+  CursorPage,
+  NoteDetail,
+  NoteSummary,
+  NoteStatus,
+  SoapContent,
+} from "@soulside/domain";
 import { apiFetch } from "@shared/api";
 import type { NotesListParams } from "./query-keys";
 
@@ -28,6 +34,27 @@ export async function fetchNotesPage(
 
 export async function fetchNoteDetail(id: string): Promise<NoteDetail> {
   const { data } = await apiFetch<NoteDetail>(`/notes/${id}`);
+  return data;
+}
+
+export async function saveNoteVersion(input: {
+  noteId: string;
+  baseVersionId: string;
+  content: SoapContent;
+  clientMutationId: string;
+  actorId?: string;
+}) {
+  const { data } = await apiFetch<{
+    version: { id: string; revision: number; parentVersionId: string };
+  }>(`/notes/${input.noteId}/versions`, {
+    method: "POST",
+    body: JSON.stringify({
+      baseVersionId: input.baseVersionId,
+      content: input.content,
+      clientMutationId: input.clientMutationId,
+      ...(input.actorId ? { actorId: input.actorId } : {}),
+    }),
+  });
   return data;
 }
 

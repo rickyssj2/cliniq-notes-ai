@@ -310,6 +310,7 @@ export class NoteStore {
         parentVersionId: version.parentVersionId ?? null,
       },
       assignedReviewer: reviewer,
+      approvedAt: note.approvedAt,
       createdAt: note.createdAt,
       updatedAt: note.updatedAt,
     };

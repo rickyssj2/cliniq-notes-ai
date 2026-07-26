@@ -25,9 +25,9 @@ pnpm dev
 ### Try in UI — Phase 3
 
 1. Open http://localhost:5173 — use **Act as** in the header to switch roles
-2. As **Auditor Lee**: Notes works (empty data). Review queue / Admin / API Lab show **Permission denied** (not empty). Nav items are struck through with hover reasons. On Notes, **Bulk assign** is disabled with a reason tooltip
-3. As **Dr. A (REVIEWER)**: Review queue opens; Admin stays denied; Bulk assign enables
-4. As **Admin Kim**: Admin + Review queue + Lab all open
+2. As **Auditor Lee**: Notes works. Admin / API Lab show **Permission denied** (not empty). Nav items are struck through with hover reasons. On Notes, bulk actions are disabled with a reason tooltip
+3. As **Dr. A (REVIEWER)**: Notes + Lab open; Admin stays denied; bulk assign enables
+4. As **Admin Kim**: Admin + Lab all open
 5. Reload the page — the selected actor persists (Zustand + localStorage)
 
 ### Try in UI — Phase 4
@@ -39,6 +39,16 @@ pnpm dev
 5. Select rows across scroll; use **Start review** / **Request regeneration** on the sticky bulk bar (as REVIEWER/ADMIN). Watch optimistic status chips update
 6. Clear filters vs search with no matches — empty workspace vs **no results** messaging differ
 7. Click a patient name → detail stub (Phase 5)
+
+### Try in UI — Phase 5
+
+1. From `/notes`, open a `READY_FOR_REVIEW` note as **Dr. A**
+2. Action bar shows **Start review** (from `getAvailableActions`). Start it — status becomes `IN_REVIEW`
+3. Edit SOAP sections — each dirty section gets a **Dirty** badge; **Save draft** enables
+4. Save — revision bumps; dirty badges clear
+5. Try **Approve** (confirm = mock MFA) or **Reject** (reason prompt). Hover disabled actions when signed in as the wrong role
+6. Open a `LOCKED` note — editor read-only + lock message (no amend path)
+7. As **Auditor Lee**, open any note — SOAP read-only (no `mutate_workflow`)
 
 ## Workspace
 
@@ -167,7 +177,7 @@ Capabilities live in `entities/user/model/permissions.ts`. Mock actors live in `
 - [x] Phase 2 — Dummy backend (+ API Lab UI at `/lab`)
 - [x] Phase 3 — Auth shell + Query plumbing
 - [x] Phase 4 — Virtualized notes list
-- [ ] Phase 5 — Note detail + SOAP editor
+- [x] Phase 5 — Note detail + SOAP editor
 - [ ] Phase 6 — Autosave & conflicts
 - [ ] Phase 7 — Real-time
 - [ ] Phase 8 — Offline queue

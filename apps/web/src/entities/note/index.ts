@@ -28,6 +28,7 @@ export {
   fetchNotesPage,
   fetchNoteDetail,
   transitionNote,
+  saveNoteVersion,
   fetchDevUsers,
   type DevUser,
 } from "./api/notes-api";
@@ -37,5 +38,11 @@ export {
   flattenNotesPages,
   type NotesFilterState,
 } from "./api/use-notes-query";
+export { useNoteDetailQuery } from "./api/use-note-detail";
 export { useNoteSelectionStore } from "./model/selection-store";
+export {
+  useEditorDraftStore,
+  isDraftDirty,
+  type EditorDraft,
+} from "./model/editor-draft-store";
 export { NoteStatusBadge } from "./ui/NoteStatusBadge";

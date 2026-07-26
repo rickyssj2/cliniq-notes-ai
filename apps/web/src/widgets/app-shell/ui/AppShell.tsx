@@ -11,7 +11,6 @@ type NavItem = {
 const NAV: NavItem[] = [
   { to: "/", label: "Home", capability: "view_notes" },
   { to: "/notes", label: "Notes", capability: "view_notes" },
-  { to: "/review-queue", label: "Review queue", capability: "access_review_queue" },
   { to: "/admin", label: "Admin", capability: "access_admin" },
   { to: "/lab", label: "API Lab", capability: "access_api_lab" },
 ];

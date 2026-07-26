@@ -49,6 +49,8 @@ export type NoteSummary = {
   status: NoteStatus;
   currentVersion: VersionRef;
   assignedReviewer: UserRef | null;
+  /** Present when status is/was APPROVED — drives amend grace checks. */
+  approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
