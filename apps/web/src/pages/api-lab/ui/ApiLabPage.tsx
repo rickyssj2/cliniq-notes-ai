@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
 import type {
   CursorPage,
   NoteDetail,
@@ -7,6 +6,7 @@ import type {
   NoteSummary,
 } from "@soulside/domain";
 import { NOTE_STATUSES } from "@soulside/domain";
+import { useActor } from "@entities/user";
 import { ApiError, apiFetch } from "@shared/api";
 import { config } from "@shared/config";
 import { Button } from "@shared/ui/button";
@@ -23,9 +23,10 @@ function mutationId(prefix: string) {
 }
 
 export function ApiLabPage() {
+  const sessionActor = useActor();
   const [seedCount, setSeedCount] = useState(500);
   const [statusFilter, setStatusFilter] = useState<NoteStatus | "">("READY_FOR_REVIEW");
-  const [actorId, setActorId] = useState("dr_a");
+  const [actorId, setActorId] = useState(sessionActor.id);
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<NoteDetail | null>(null);
@@ -35,6 +36,10 @@ export function ApiLabPage() {
   const [wsConnected, setWsConnected] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    setActorId(sessionActor.id);
+  }, [sessionActor.id]);
 
   const pushLog = useCallback((kind: LogEntry["kind"], message: string) => {
     setLog((prev) =>
@@ -158,15 +163,10 @@ export function ApiLabPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Backend playground</h1>
           <p className="max-w-2xl text-sm text-[var(--muted)]">
             Exercise seed, list, transitions, version conflicts, chaos, and the
-            WebSocket feed from the browser — no curl required.
+            WebSocket feed from the browser — no curl required. Actor defaults
+            follow the header role switcher.
           </p>
         </div>
-        <Link
-          to="/"
-          className="text-sm text-[var(--accent)] underline-offset-4 hover:underline"
-        >
-          ← Home
-        </Link>
       </header>
 
       <section className="grid gap-4 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 md:grid-cols-2">

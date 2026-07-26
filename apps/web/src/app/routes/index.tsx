@@ -1,12 +1,29 @@
 import { Navigate, Route, Routes } from "react-router";
+import { AppShell } from "@widgets/app-shell";
+import { RequireCapability } from "@entities/user";
 import { HomePage } from "@pages/home";
+import { NotesListPage } from "@pages/notes-list";
+import { ReviewQueuePage } from "@pages/review-queue";
+import { AdminPage } from "@pages/admin";
 import { ApiLabPage } from "@pages/api-lab";
 
 export function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/lab" element={<ApiLabPage />} />
+      <Route element={<AppShell />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/notes" element={<NotesListPage />} />
+        <Route path="/review-queue" element={<ReviewQueuePage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route
+          path="/lab"
+          element={
+            <RequireCapability capability="access_api_lab">
+              <ApiLabPage />
+            </RequireCapability>
+          }
+        />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -11,14 +11,25 @@ export class ApiError extends Error {
   }
 }
 
+type ActorIdProvider = () => string | null;
+
+let actorIdProvider: ActorIdProvider = () => null;
+
+/** Wired from `app` so shared stays free of entity imports (FSD). */
+export function setActorIdProvider(provider: ActorIdProvider) {
+  actorIdProvider = provider;
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<{ status: number; data: T }> {
+  const actorId = actorIdProvider();
   const res = await fetch(`${config.apiBaseUrl}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(actorId ? { "X-Actor-Id": actorId } : {}),
       ...(init?.headers ?? {}),
     },
   });
