@@ -46,4 +46,14 @@ export {
   isDraftDirty,
   type EditorDraft,
 } from "./model/editor-draft-store";
+export {
+  usePresenceStore,
+  EMPTY_PRESENCE,
+  type PresenceViewer,
+} from "./model/presence-store";
+export {
+  useConflictStore,
+  type ConflictPayload,
+} from "./model/conflict-store";
+export { applyRealtimeEvent } from "./lib/apply-realtime-event";
 export { NoteStatusBadge } from "./ui/NoteStatusBadge";

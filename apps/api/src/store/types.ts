@@ -40,7 +40,13 @@ export type RealtimeEvent =
       type: "note.version_added";
       eventId: string;
       noteId: string;
-      version: { id: string; revision: number; parentVersionId: string | null };
+      version: {
+        id: string;
+        revision: number;
+        parentVersionId: string | null;
+        content: SoapContent;
+        authoredBy: UserRef;
+      };
       at: string;
     }
   | {

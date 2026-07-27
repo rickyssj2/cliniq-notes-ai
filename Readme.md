@@ -59,6 +59,14 @@ pnpm dev
 5. **Fail next save (500)** then edit — optimistic paint rolls back; error shows; Retry reuses the same mutation id
 6. List filters survive detail ↔ back (search params preserved on Links)
 
+### Try in UI — Phase 7
+
+1. Open `/notes` — header badge should read **Live**
+2. Open the same `IN_REVIEW` note in two browser tabs (optionally different actors via **Act as**)
+3. In tab A, **Start review** / **Approve** / edit+save — tab B list status chip and detail update without refresh; presence avatars appear while both have the note open
+4. In tab A, edit SOAP and leave dirty; in tab B save a different edit — tab A opens the same three-way conflict merge UI
+5. Kill the API briefly or throttle network — badge shows **Reconnecting…**, then **Live**; missed events replay via `lastEventId`
+
 ## Workspace
 
 | Package | Role |
@@ -89,10 +97,11 @@ Filled in as phases land. Required by the assignment:
 
 _In progress. So far:_
 - **Pure domain (`packages/domain`)** — lifecycle invariants via `noteMachine` (no React, no I/O)
-- **Zustand** — session/actor; note selection; SOAP editor drafts (dirty + `baseVersionId`)
-- **TanStack Query** — notes list/detail; optimistic list + detail patches with rollback
+- **Zustand** — session/actor; note selection; SOAP editor drafts; presence; conflict modal payload
+- **TanStack Query** — notes list/detail; optimistic patches; live WS reconciliation
 - **Dexie** — opened at boot; queues used Phase 8/10
 - **URL** — list filters/sort/search (preserved across detail Links)
+- **WebSocket** — viewport + detail subscriptions; reconnect cursor replay
 
 ### State Machine — How the note lifecycle is modelled
 
@@ -126,7 +135,7 @@ _Pending — Phase 8 (Dexie)._
 
 ### Real-Time — Reconcile channel with optimistic state
 
-_Server side (Phase 2):_ `ws://localhost:3001/ws` (proxied as `/ws`). Clients `subscribe` with `noteIds` + optional `lastEventId` for replay. Events: `note.status_changed`, `note.version_added`, `note.presence`. Client reconciliation lands in Phase 7.
+App-wide WebSocket (`shared/realtime`): viewport note ids from the virtualizer + open detail; `presence.join` on detail. Events dedupe by `eventId`. `note.status_changed` / `note.version_added` patch TanStack Query (status chips live); dirty draft + foreign `version_added` opens the Phase 6 merge UI. Reconnect uses exponential backoff + jitter and resubscribes with `lastEventId` for replay. Header **Live** badge + presence avatars.
 
 ### Telemetry — Batch, retry, unload, PII redaction
 
@@ -144,7 +153,7 @@ _Phase 4:_ TanStack Virtual + infinite cursor query on `/notes`. Filters/sort/se
 
 ### Accessibility — Keyboard, SR, WCAG 2.2 AA
 
-_Pending — built on shadcn/Radix primitives; posture documented by Phase 11._
+_Pending full pass by Phase 11._ Route-level `ErrorBoundary` (header stays up; Try again / Back to notes) pulled forward so render failures don’t blank the SPA.
 
 ## Dummy API (Phase 2)
 
@@ -190,7 +199,7 @@ Capabilities live in `entities/user/model/permissions.ts`. Mock actors live in `
 - [x] Phase 4 — Virtualized notes list
 - [x] Phase 5 — Note detail + SOAP editor
 - [x] Phase 6 — Autosave & conflicts
-- [ ] Phase 7 — Real-time
+- [x] Phase 7 — Real-time
 - [ ] Phase 8 — Offline queue
 - [ ] Phase 9 — Version history
 - [ ] Phase 10 — Telemetry

@@ -4,6 +4,8 @@ import type { SoapContent, SoapSection } from "@soulside/domain";
 export type EditorDraft = {
   noteId: string;
   baseVersionId: string;
+  /** Snapshot of sections when baseVersionId was established (common ancestor). */
+  baseSections: Record<SoapSection, string>;
   sections: Record<SoapSection, string>;
   dirty: Record<SoapSection, boolean>;
 };
@@ -35,6 +37,17 @@ const emptyDirty = (): Record<SoapSection, boolean> => ({
   P: false,
 });
 
+function copySections(
+  sections: Record<SoapSection, string>,
+): Record<SoapSection, string> {
+  return {
+    S: sections.S,
+    O: sections.O,
+    A: sections.A,
+    P: sections.P,
+  };
+}
+
 export const useEditorDraftStore = create<EditorDraftState>((set, get) => ({
   drafts: {},
 
@@ -49,18 +62,27 @@ export const useEditorDraftStore = create<EditorDraftState>((set, get) => ({
       // Keep in-progress edits for the same head version.
       return;
     }
+    if (
+      !force &&
+      existing &&
+      existing.baseVersionId === baseVersionId &&
+      !Object.values(existing.dirty).some(Boolean) &&
+      existing.sections.S === content.sections.S &&
+      existing.sections.O === content.sections.O &&
+      existing.sections.A === content.sections.A &&
+      existing.sections.P === content.sections.P
+    ) {
+      return;
+    }
+    const sections = copySections(content.sections);
     set({
       drafts: {
         ...get().drafts,
         [noteId]: {
           noteId,
           baseVersionId,
-          sections: {
-            S: content.sections.S,
-            O: content.sections.O,
-            A: content.sections.A,
-            P: content.sections.P,
-          },
+          baseSections: copySections(sections),
+          sections,
           dirty: emptyDirty(),
         },
       },
@@ -85,12 +107,15 @@ export const useEditorDraftStore = create<EditorDraftState>((set, get) => ({
   markClean: (noteId, baseVersionId) => {
     const draft = get().drafts[noteId];
     if (!draft) return;
+    const sections = copySections(draft.sections);
     set({
       drafts: {
         ...get().drafts,
         [noteId]: {
           ...draft,
           baseVersionId,
+          baseSections: sections,
+          sections,
           dirty: emptyDirty(),
         },
       },
@@ -98,12 +123,14 @@ export const useEditorDraftStore = create<EditorDraftState>((set, get) => ({
   },
 
   applyResolution: ({ noteId, baseVersionId, sections }) => {
+    const existing = get().drafts[noteId];
     set({
       drafts: {
         ...get().drafts,
         [noteId]: {
           noteId,
           baseVersionId,
+          baseSections: existing?.baseSections ?? copySections(sections),
           sections: { ...sections },
           dirty: { S: true, O: true, A: true, P: true },
         },

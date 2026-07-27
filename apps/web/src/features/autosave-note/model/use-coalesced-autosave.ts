@@ -5,6 +5,7 @@ import {
   isDraftDirty,
   notesQueryKeys,
   saveNoteVersion,
+  useConflictStore,
   useEditorDraftStore,
   usePatchNoteInLists,
   type EditorDraft,
@@ -37,7 +38,7 @@ export function useCoalescedAutosave(opts: {
   note: NoteDetail;
   actorId: string;
   enabled: boolean;
-  onConflict: (conflict: VersionConflictError, yours: EditorDraft) => void;
+  onConflict?: (conflict: VersionConflictError, yours: EditorDraft) => void;
 }): AutosaveControllers {
   const { note, actorId, enabled, onConflict } = opts;
   const queryClient = useQueryClient();
@@ -127,14 +128,20 @@ export function useCoalescedAutosave(opts: {
       }
       await qc.invalidateQueries({ queryKey: notesQueryKeys.lists() });
 
-      if (
-        err instanceof ApiError &&
-        err.status === 409 &&
-        isVersionConflict(err.body)
-      ) {
-        onConflictRef.current(err.body, d);
-        return { ok: false, kind: "conflict", message: "Version conflict" };
-      }
+          if (
+            err instanceof ApiError &&
+            err.status === 409 &&
+            isVersionConflict(err.body)
+          ) {
+            useConflictStore.getState().openConflict({
+              noteId: n.id,
+              conflict: err.body,
+              yours: d,
+              source: "save",
+            });
+            onConflictRef.current?.(err.body, d);
+            return { ok: false, kind: "conflict", message: "Version conflict" };
+          }
       const message =
         err instanceof ApiError
           ? `Save failed (${err.status}): ${JSON.stringify(err.body)}`

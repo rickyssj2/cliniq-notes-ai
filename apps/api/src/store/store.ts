@@ -506,6 +506,8 @@ export class NoteStore {
           id: sneaky.id,
           revision: sneaky.revision,
           parentVersionId: head.id,
+          content: sneaky.content,
+          authoredBy: sneaky.authoredBy,
         },
         at: sneaky.createdAt,
       });
@@ -568,6 +570,8 @@ export class NoteStore {
         id: version.id,
         revision: version.revision,
         parentVersionId: head.id,
+        content: version.content,
+        authoredBy: version.authoredBy,
       },
       at: version.createdAt,
     });
@@ -659,6 +663,8 @@ export class NoteStore {
           id: branched.id,
           revision: branched.revision,
           parentVersionId: head.id,
+          content: branched.content,
+          authoredBy: branched.authoredBy,
         },
         at: now,
       });
@@ -712,17 +718,23 @@ export class NoteStore {
     if (!viewer) map.delete(socketId);
     else map.set(socketId, { ...viewer, socketId });
 
-    const viewers = [...map.values()].map((v) => ({
-      id: v.userId,
-      role: v.role,
-      displayName: v.displayName,
-    }));
+    const viewers = this.listPresence(noteId);
     this.emit({
       type: "note.presence",
       noteId,
       viewers,
       at: new Date().toISOString(),
     });
+  }
+
+  listPresence(noteId: string) {
+    const map = this.presence.get(noteId);
+    if (!map) return [];
+    return [...map.values()].map((v) => ({
+      id: v.userId,
+      role: v.role,
+      displayName: v.displayName,
+    }));
   }
 
   clearSocketPresence(socketId: string) {

@@ -46,6 +46,7 @@ export function createCoalescedSaver(opts: {
   };
 
   const setStatus = (next: CoalescedSaveStatus) => {
+    if (status === next) return;
     status = next;
     notify();
   };
@@ -58,8 +59,10 @@ export function createCoalescedSaver(opts: {
     inFlight = true;
     if (!mutationId) mutationId = opts.mintMutationId();
     setStatus("saving");
-    lastError = null;
-    notify();
+    if (lastError !== null) {
+      lastError = null;
+      notify();
+    }
 
     try {
       const result = await opts.save(mutationId);

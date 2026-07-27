@@ -33,12 +33,12 @@ export function NotesListPage() {
     <main className="mx-auto max-w-6xl space-y-6 px-6 py-8 pb-28">
       <div className="space-y-2">
         <p className="text-sm font-medium tracking-[0.16em] text-[var(--muted)] uppercase">
-          Phase 4 · Notes
+          Phase 7 · Notes
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">Notes</h1>
         <p className="max-w-2xl text-sm text-[var(--muted)]">
-          Cursor-paginated, virtualized list. Filters and sort live in the URL —
-          copy the address bar to deep-link. Selection survives scroll/pagination.
+          Virtualized list with viewport WebSocket subscriptions. Open a second
+          tab — status chips and presence avatars update live (header shows Live).
         </p>
       </div>
 

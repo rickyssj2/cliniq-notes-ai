@@ -4,6 +4,8 @@ import { BrowserRouter } from "react-router";
 import { useSessionStore } from "@entities/user";
 import { queryClient, setActorIdProvider } from "@shared/api";
 import { db } from "@shared/db";
+import { useRealtimeBootstrap } from "@features/realtime-sync";
+import { ConflictMergeHost } from "@features/resolve-conflict";
 
 type AppProvidersProps = {
   children: ReactNode;
@@ -20,11 +22,23 @@ function DexieBootstrap({ children }: { children: ReactNode }) {
   return children;
 }
 
+function RealtimeBootstrap({ children }: { children: ReactNode }) {
+  useRealtimeBootstrap();
+  return (
+    <>
+      {children}
+      <ConflictMergeHost />
+    </>
+  );
+}
+
 export function AppProviders({ children }: AppProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <DexieBootstrap>{children}</DexieBootstrap>
+        <DexieBootstrap>
+          <RealtimeBootstrap>{children}</RealtimeBootstrap>
+        </DexieBootstrap>
       </BrowserRouter>
     </QueryClientProvider>
   );

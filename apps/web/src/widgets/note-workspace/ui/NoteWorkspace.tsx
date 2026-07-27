@@ -1,28 +1,28 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
-import type { NoteDetail, VersionConflictError } from "@soulside/domain";
+import type { NoteDetail } from "@soulside/domain";
 import { isContentReadOnly } from "@soulside/domain";
 import {
   isDraftDirty,
   setDevFailNext,
+  useConflictStore,
   useEditorDraftStore,
+  usePresenceStore,
+  EMPTY_PRESENCE,
   NoteStatusBadge,
-  type EditorDraft,
 } from "@entities/note";
 import { can as canCapability, useActor } from "@entities/user";
 import { SoapEditor } from "@features/edit-soap";
 import { NoteActionBar } from "@features/transition-note";
 import { useCoalescedAutosave } from "@features/autosave-note";
-import { ConflictMergeModal } from "@features/resolve-conflict";
+import {
+  PresenceAvatars,
+  useNotePresenceChannel,
+} from "@features/realtime-sync";
 import { Button } from "@shared/ui/button";
 
 type Props = {
   note: NoteDetail;
-};
-
-type ConflictState = {
-  conflict: VersionConflictError;
-  yours: EditorDraft;
 };
 
 function saveLabel(status: string, dirty: boolean): string {
@@ -38,24 +38,27 @@ export function NoteWorkspace({ note }: Props) {
   const actor = useActor();
   const location = useLocation();
   const hydrate = useEditorDraftStore((s) => s.hydrate);
-  const applyResolution = useEditorDraftStore((s) => s.applyResolution);
   const draft = useEditorDraftStore((s) => s.drafts[note.id]);
-  const [conflictState, setConflictState] = useState<ConflictState | null>(null);
+  const conflictOpen = useConflictStore((s) =>
+    s.open?.noteId === note.id ? s.open : null,
+  );
+  // Must use stable EMPTY_PRESENCE — `?? []` allocates every select → infinite re-renders.
+  const viewers = usePresenceStore(
+    (s) => s.byNoteId[note.id] ?? EMPTY_PRESENCE,
+  );
   const [autosaveOn, setAutosaveOn] = useState(true);
   const [demoMsg, setDemoMsg] = useState<string | null>(null);
 
+  useNotePresenceChannel(note.id);
+
+  // Depend on version id only — content object identity changes on every Query patch.
   useEffect(() => {
     hydrate({
       noteId: note.id,
       baseVersionId: note.currentVersion.id,
       content: note.currentVersion.content,
     });
-  }, [
-    hydrate,
-    note.currentVersion.content,
-    note.currentVersion.id,
-    note.id,
-  ]);
+  }, [hydrate, note.id, note.currentVersion.id]);
 
   const readOnly =
     isContentReadOnly(note.status) ||
@@ -66,10 +69,7 @@ export function NoteWorkspace({ note }: Props) {
   const autosave = useCoalescedAutosave({
     note,
     actorId: actor.id,
-    enabled: autosaveOn && !readOnly && !conflictState,
-    onConflict: (conflict, yours) => {
-      setConflictState({ conflict, yours });
-    },
+    enabled: autosaveOn && !readOnly && !conflictOpen,
   });
 
   return (
@@ -83,13 +83,14 @@ export function NoteWorkspace({ note }: Props) {
             ← Notes
           </Link>
           <p className="text-sm font-medium tracking-[0.16em] text-[var(--muted)] uppercase">
-            Phase 6 · Autosave & conflicts
+            Phase 7 · Real-time
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">
             {note.patient.displayName}
           </h1>
           <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
             <NoteStatusBadge status={note.status} />
+            <PresenceAvatars viewers={viewers} excludeUserId={actor.id} />
             <span>
               Rev {note.currentVersion.revision} ·{" "}
               <code className="text-xs">{note.id}</code>
@@ -118,7 +119,7 @@ export function NoteWorkspace({ note }: Props) {
                 readOnly ||
                 (!dirty && autosave.status !== "error") ||
                 autosave.status === "saving" ||
-                !!conflictState
+                !!conflictOpen
               }
               onClick={() => void autosave.saveNow()}
             >
@@ -128,7 +129,7 @@ export function NoteWorkspace({ note }: Props) {
           <p className="text-xs text-[var(--muted)]">
             {readOnly
               ? "Read-only for this status/role"
-              : conflictState
+              : conflictOpen
                 ? "Resolve the conflict modal to continue"
                 : autosave.status === "saving"
                   ? "Coalesced save in flight…"
@@ -154,7 +155,7 @@ export function NoteWorkspace({ note }: Props) {
         <h2 className="mb-4 text-sm font-semibold tracking-wide uppercase">
           SOAP
         </h2>
-        <SoapEditor noteId={note.id} readOnly={readOnly || !!conflictState} />
+        <SoapEditor noteId={note.id} readOnly={readOnly || !!conflictOpen} />
       </section>
 
       {!readOnly && (
@@ -163,7 +164,8 @@ export function NoteWorkspace({ note }: Props) {
             Demo controls
           </h2>
           <p className="text-xs text-[var(--muted)]">
-            Deterministic fail-next / force-conflict (does not require chaos ON).
+            Open this note in a second tab to see presence + live status. Force
+            conflict / fail-next still work for save demos.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -221,23 +223,6 @@ export function NoteWorkspace({ note }: Props) {
             <p className="text-xs text-[var(--muted)]">{demoMsg}</p>
           )}
         </section>
-      )}
-
-      {conflictState && (
-        <ConflictMergeModal
-          conflict={conflictState.conflict}
-          yours={conflictState.yours}
-          onCancel={() => setConflictState(null)}
-          onResolve={(sections, baseVersionId) => {
-            applyResolution({
-              noteId: note.id,
-              baseVersionId,
-              sections,
-            });
-            setConflictState(null);
-            void autosave.saveNow();
-          }}
-        />
       )}
     </div>
   );

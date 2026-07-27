@@ -73,7 +73,11 @@ export function attachRealtime(server: Server) {
       switch (msg.type) {
         case "subscribe": {
           if (msg.user) client.user = msg.user;
-          for (const noteId of msg.noteIds ?? []) client.noteIds.add(noteId);
+          const added: string[] = [];
+          for (const noteId of msg.noteIds ?? []) {
+            if (!client.noteIds.has(noteId)) added.push(noteId);
+            client.noteIds.add(noteId);
+          }
           const since = msg.lastEventId ?? client.lastEventId;
           const missed = store.eventsSince(since).filter((e) =>
             client.noteIds.has(e.noteId),
@@ -81,6 +85,20 @@ export function attachRealtime(server: Server) {
           for (const event of missed) {
             socket.send(JSON.stringify(event));
             client.lastEventId = event.eventId;
+          }
+          // Current presence for newly subscribed notes (not in the event log).
+          for (const noteId of added) {
+            const viewers = store.listPresence(noteId);
+            if (viewers.length === 0) continue;
+            socket.send(
+              JSON.stringify({
+                type: "note.presence",
+                eventId: `snap_${client.id}_${noteId}`,
+                noteId,
+                viewers,
+                at: new Date().toISOString(),
+              }),
+            );
           }
           socket.send(
             JSON.stringify({

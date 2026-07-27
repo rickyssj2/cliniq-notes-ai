@@ -1,9 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Link, useLocation } from "react-router";
 import type { NoteSummary } from "@soulside/domain";
-import { NoteStatusBadge, useNoteSelectionStore } from "@entities/note";
+import {
+  NoteStatusBadge,
+  useNoteSelectionStore,
+  usePresenceStore,
+  EMPTY_PRESENCE,
+} from "@entities/note";
 import type { NotesSortField } from "@entities/note";
+import { useActor } from "@entities/user";
+import {
+  PresenceAvatars,
+  useRealtimeNoteSource,
+} from "@features/realtime-sync";
 import { cn } from "@shared/lib";
 
 const ROW_HEIGHT = 52;
@@ -64,10 +74,12 @@ export function NotesTable({
   emptyMode,
 }: Props) {
   const location = useLocation();
+  const actor = useActor();
   const parentRef = useRef<HTMLDivElement>(null);
   const selectedIds = useNoteSelectionStore((s) => s.selectedIds);
   const toggle = useNoteSelectionStore((s) => s.toggle);
   const setMany = useNoteSelectionStore((s) => s.setMany);
+  const presenceByNote = usePresenceStore((s) => s.byNoteId);
 
   const virtualizer = useVirtualizer({
     count: notes.length,
@@ -77,6 +89,12 @@ export function NotesTable({
   });
 
   const virtualItems = virtualizer.getVirtualItems();
+
+  const visibleIds = useMemo(
+    () => virtualItems.map((row) => notes[row.index]?.id).filter(Boolean) as string[],
+    [virtualItems, notes],
+  );
+  useRealtimeNoteSource("viewport", visibleIds);
 
   useEffect(() => {
     const last = virtualItems[virtualItems.length - 1];
@@ -221,7 +239,14 @@ export function NotesTable({
                   <p className="truncate text-xs text-[var(--muted)]">{note.id}</p>
                 </div>
                 <div>
-                  <NoteStatusBadge status={note.status} />
+                  <div className="flex items-center gap-2">
+                    <NoteStatusBadge status={note.status} />
+                    <PresenceAvatars
+                      viewers={presenceByNote[note.id] ?? EMPTY_PRESENCE}
+                      excludeUserId={actor.id}
+                      max={3}
+                    />
+                  </div>
                 </div>
                 <p className="truncate text-[var(--muted)]">
                   {note.assignedReviewer?.displayName ?? "—"}
