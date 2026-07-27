@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { SoapSection, VersionConflictError } from "@soulside/domain";
 import type { EditorDraft } from "@entities/note";
 import { Button } from "@shared/ui/button";
-import { WordDiff } from "../lib/word-diff";
+import { WordDiff } from "@shared/ui/word-diff";
 
 const SECTIONS: SoapSection[] = ["S", "O", "A", "P"];
 const LABELS: Record<SoapSection, string> = {

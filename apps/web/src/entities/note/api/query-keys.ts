@@ -22,4 +22,6 @@ export const notesQueryKeys = {
   list: (params: Omit<NotesListParams, "cursor" | "limit">) =>
     [...notesQueryKeys.lists(), params] as const,
   detail: (id: string) => [...notesQueryKeys.all, "detail", id] as const,
+  version: (noteId: string, versionId: string) =>
+    [...notesQueryKeys.all, "version", noteId, versionId] as const,
 };

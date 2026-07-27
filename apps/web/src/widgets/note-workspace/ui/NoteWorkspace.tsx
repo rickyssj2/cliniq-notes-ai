@@ -25,6 +25,7 @@ import {
   usePendingMutationCount,
   type CreateVersionPayload,
 } from "@features/offline-queue";
+import { NoteHistoryPanel, ReviewTimeline } from "@features/note-history";
 import { Button } from "@shared/ui/button";
 
 type Props = {
@@ -92,7 +93,7 @@ export function NoteWorkspace({ note }: Props) {
   });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
+    <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <Link
@@ -102,7 +103,7 @@ export function NoteWorkspace({ note }: Props) {
             ← Notes
           </Link>
           <p className="text-sm font-medium tracking-[0.16em] text-[var(--muted)] uppercase">
-            Phase 8 · Offline queue
+            Phase 9 · History
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">
             {note.patient.displayName}
@@ -185,6 +186,9 @@ export function NoteWorkspace({ note }: Props) {
         </h2>
         <SoapEditor noteId={note.id} readOnly={readOnly || !!conflictOpen} />
       </section>
+
+      <NoteHistoryPanel note={note} />
+      <ReviewTimeline note={note} />
 
       {!readOnly && (
         <section className="space-y-3 rounded-lg border border-dashed border-[var(--border)] bg-[var(--card)] p-4">

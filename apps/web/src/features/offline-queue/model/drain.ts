@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { VersionConflictError } from "@soulside/domain";
+import type { NoteDetail, VersionConflictError } from "@soulside/domain";
 import {
   notesQueryKeys,
   saveNoteVersion,
@@ -83,7 +83,7 @@ export async function drainMutationQueue(
           });
         } else {
           const payload = item.payload as TransitionPayload;
-          await transitionNote({
+          const result = await transitionNote({
             noteId: item.noteId,
             to: payload.to,
             actorId: payload.actorId,
@@ -91,6 +91,23 @@ export async function drainMutationQueue(
             mfaVerified: payload.mfaVerified,
             clientMutationId: item.clientMutationId,
           });
+          queryClient.setQueryData<NoteDetail>(
+            notesQueryKeys.detail(item.noteId),
+            (old) => {
+              if (!old) return old;
+              return {
+                ...old,
+                status: result.note.status,
+                assignedReviewer: result.note.assignedReviewer,
+                approvedAt: result.note.approvedAt,
+                updatedAt: result.note.updatedAt,
+                currentVersion: {
+                  ...old.currentVersion,
+                  ...result.note.currentVersion,
+                },
+              };
+            },
+          );
           await queryClient.invalidateQueries({
             queryKey: notesQueryKeys.detail(item.noteId),
           });
@@ -144,6 +161,13 @@ export async function drainMutationQueue(
               ? err.message
               : "failed";
         await markFailed(item.id, message);
+        // Roll back optimistic detail/list if the server rejected the replay.
+        await queryClient.invalidateQueries({
+          queryKey: notesQueryKeys.detail(item.noteId),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: notesQueryKeys.lists(),
+        });
       }
     }
   } finally {

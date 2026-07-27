@@ -9,7 +9,9 @@ export {
   getLatestPendingCreateVersion,
   countPendingForNote,
   countPendingMutations,
+  listPendingForNote,
   recoverInFlightMutations,
+  subscribeQueueStats,
   type CreateVersionPayload,
   type TransitionPayload,
 } from "./model/mutation-queue";

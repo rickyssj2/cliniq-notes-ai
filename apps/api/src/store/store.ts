@@ -8,6 +8,7 @@ import {
   type NoteDetail,
   type NoteStatus,
   type NoteSummary,
+  type NoteVersion,
   type TransitionEffect,
   type VersionConflictError,
 } from "@soulside/domain";
@@ -333,6 +334,14 @@ export class NoteStore {
       })),
       review: { events: this.eventsByNote.get(note.id) ?? [] },
     };
+  }
+
+  getVersion(noteId: string, versionId: string): NoteVersion | null {
+    const note = this.notes.get(noteId);
+    if (!note) return null;
+    const version = this.versions.get(versionId);
+    if (!version || version.noteId !== noteId) return null;
+    return version;
   }
 
   listNotes(query: ListQuery): CursorPage<NoteSummary> {

@@ -3,6 +3,7 @@ import type {
   NoteDetail,
   NoteSummary,
   NoteStatus,
+  NoteVersion,
   SoapContent,
 } from "@soulside/domain";
 import { apiFetch } from "@shared/api";
@@ -34,6 +35,16 @@ export async function fetchNotesPage(
 
 export async function fetchNoteDetail(id: string): Promise<NoteDetail> {
   const { data } = await apiFetch<NoteDetail>(`/notes/${id}`);
+  return data;
+}
+
+export async function fetchNoteVersion(
+  noteId: string,
+  versionId: string,
+): Promise<NoteVersion> {
+  const { data } = await apiFetch<NoteVersion>(
+    `/notes/${noteId}/versions/${versionId}`,
+  );
   return data;
 }
 

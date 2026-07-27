@@ -27,6 +27,7 @@ export {
 export {
   fetchNotesPage,
   fetchNoteDetail,
+  fetchNoteVersion,
   transitionNote,
   saveNoteVersion,
   setDevFailNext,
@@ -40,6 +41,7 @@ export {
   type NotesFilterState,
 } from "./api/use-notes-query";
 export { useNoteDetailQuery } from "./api/use-note-detail";
+export { useNoteVersionQuery } from "./api/use-note-version";
 export { useNoteSelectionStore } from "./model/selection-store";
 export {
   useEditorDraftStore,

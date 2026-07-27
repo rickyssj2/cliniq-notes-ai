@@ -18,7 +18,9 @@ const listeners = new Set<() => void>();
 
 export function subscribeQueueStats(listener: () => void) {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 function notifyQueue() {
@@ -166,4 +168,19 @@ export async function countPendingForNote(noteId: string): Promise<number> {
         i.status === "pending" || i.status === "in_flight" || i.status === "failed",
     )
     .count();
+}
+
+export async function listPendingForNote(
+  noteId: string,
+): Promise<MutationQueueItem[]> {
+  const rows = await db.mutationQueue
+    .where("noteId")
+    .equals(noteId)
+    .filter(
+      (i) =>
+        i.status === "pending" || i.status === "in_flight" || i.status === "failed",
+    )
+    .toArray();
+  rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return rows;
 }

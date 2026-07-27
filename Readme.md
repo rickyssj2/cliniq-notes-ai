@@ -76,6 +76,13 @@ pnpm dev
 5. Reload while still offline — queued content restores from Dexie; pending count survives
 6. Go online — banner **Back online · syncing…**, queue drains, revision bumps
 
+### Try in UI — Phase 9
+
+1. Open a note with multiple revisions (save a few SOAP edits while `IN_REVIEW`)
+2. In **Version history**, click two revisions — SOAP word-diff appears (older → newer)
+3. Run a transition (Start review / Approve) — **Review timeline** shows the status edge
+4. DevTools Offline → queue a transition or save — timeline shows an amber **Optimistic** row until sync
+
 ## Workspace
 
 | Package | Role |
@@ -134,6 +141,8 @@ _Phase 4 (list):_ bulk transitions patch the TanStack Query infinite-list cache 
 
 _Phase 6 (detail):_ coalesced autosave paints draft SOAP into the detail (+ list `updatedAt`) before the POST resolves; on `500`/`409` the snapshot is restored. Conflicts open a merge modal instead of silently dropping edits.
 
+_Phase 9 (timeline):_ pending Dexie queue items appear as amber optimistic rows on the review timeline until drain/ack refreshes `review.events`.
+
 ### Concurrency — Version conflicts without data loss
 
 `POST /api/notes/:id/versions` requires `baseVersionId`. Mismatch (or `X-Force-Conflict: 1` / chaos / fail-next) returns `409 version_conflict` with **content** for `current` + `commonAncestor`. Detail UI: three-way merge (yours / server / ancestor), word-level `diff`, resolve retargets `baseVersionId` to server head and saves once. Mutations stay idempotent via `clientMutationId` (retry after 5xx reuses the id).
@@ -152,7 +161,7 @@ _Pending — Phase 10._
 
 ### Scale — List/detail/history at 100k+ notes
 
-_Phase 4:_ TanStack Virtual + infinite cursor query on `/notes`. Filters/sort/search URL-persisted. Seed up to 100k via `POST /api/dev/seed`. Detail/history virtualization continues in later phases.
+_Phase 4:_ TanStack Virtual + infinite cursor query on `/notes`. Filters/sort/search URL-persisted. Seed up to 100k via `POST /api/dev/seed`. Detail version content loads on demand via `GET /notes/:id/versions/:versionId` (Phase 9).
 
 ### Testing — Unit, integration, e2e posture
 
@@ -173,7 +182,8 @@ _Pending full pass by Phase 11._ Route-level `ErrorBoundary` (header stays up; T
 | GET | `/api/dev/users` | Seeded actors (`dr_a`…, clinicians, …) |
 | GET | `/api/dev/ready-note` | First `READY_FOR_REVIEW` |
 | GET | `/api/notes` | Cursor + `status`, `reviewerId`, `patientId`, `q`, `sort`, `order`, `limit` |
-| GET | `/api/notes/:id` | Detail + versions + review events |
+| GET | `/api/notes/:id` | Detail + versions meta + review events |
+| GET | `/api/notes/:id/versions/:versionId` | Full version content (for history diffs) |
 | POST | `/api/notes/:id/versions` | `baseVersionId`, `content`, `clientMutationId` |
 | POST | `/api/notes/:id/transitions` | `{ to, actorId, reason?, mfaVerified?, clientMutationId? }` — validated by `noteMachine` |
 | WS | `/ws` | `subscribe` / `replay` / `presence.join` |
@@ -210,6 +220,6 @@ Capabilities live in `entities/user/model/permissions.ts`. Mock actors live in `
 - [x] Phase 6 — Autosave & conflicts
 - [x] Phase 7 — Real-time
 - [x] Phase 8 — Offline queue
-- [ ] Phase 9 — Version history
+- [x] Phase 9 — Version history
 - [ ] Phase 10 — Telemetry
 - [ ] Phase 11 — Simulation, tests, README polish

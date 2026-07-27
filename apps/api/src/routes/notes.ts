@@ -49,6 +49,12 @@ notesRoutes.get("/:id", (c) => {
   return c.json(detail);
 });
 
+notesRoutes.get("/:id/versions/:versionId", (c) => {
+  const version = store.getVersion(c.req.param("id"), c.req.param("versionId"));
+  if (!version) return c.json({ error: "not_found" }, 404);
+  return c.json(version);
+});
+
 notesRoutes.post("/:id/versions", async (c) => {
   if (consumeFailNext("versions")) {
     return c.json(
