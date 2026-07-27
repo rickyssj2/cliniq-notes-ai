@@ -1,9 +1,12 @@
 import { Link, useParams } from "react-router";
 import { useNoteDetailQuery } from "@entities/note";
+import { useEffectiveOnline } from "@features/offline-queue";
+import { ApiError, isNetworkError } from "@shared/api";
 import { NoteWorkspace } from "@widgets/note-workspace";
 
 export function NoteDetailPage() {
   const { noteId } = useParams();
+  const online = useEffectiveOnline();
   const query = useNoteDetailQuery(noteId);
 
   if (!noteId) {
@@ -12,6 +15,11 @@ export function NoteDetailPage() {
         <p>Missing note id.</p>
       </main>
     );
+  }
+
+  // Prefer cached data while offline (even if a refetch failed).
+  if (query.data) {
+    return <NoteWorkspace note={query.data} />;
   }
 
   if (query.isLoading) {
@@ -24,13 +32,18 @@ export function NoteDetailPage() {
     );
   }
 
-  if (query.isError || !query.data) {
+  const network =
+    !online || isNetworkError(query.error);
+  const notFound =
+    query.error instanceof ApiError && query.error.status === 404;
+
+  if (network) {
     return (
       <main className="mx-auto max-w-3xl space-y-4 px-6 py-10">
-        <h1 className="text-2xl font-semibold">Note not found</h1>
+        <h1 className="text-2xl font-semibold">You’re offline</h1>
         <p className="text-sm text-[var(--muted)]">
-          Could not load <code>{noteId}</code>. It may have been cleared by a
-          reseed.
+          This note isn’t in the local cache. Open it while online first, or go
+          back to notes you’ve already loaded this session.
         </p>
         <Link
           to="/notes"
@@ -42,5 +55,24 @@ export function NoteDetailPage() {
     );
   }
 
-  return <NoteWorkspace note={query.data} />;
+  return (
+    <main className="mx-auto max-w-3xl space-y-4 px-6 py-10">
+      <h1 className="text-2xl font-semibold">
+        {notFound ? "Note not found" : "Couldn’t load note"}
+      </h1>
+      <p className="text-sm text-[var(--muted)]">
+        {notFound
+          ? `Could not load ${noteId}. It may have been cleared by a reseed.`
+          : query.error instanceof Error
+            ? query.error.message
+            : "Unexpected error loading this note."}
+      </p>
+      <Link
+        to="/notes"
+        className="text-sm text-[var(--accent)] underline-offset-4 hover:underline"
+      >
+        ← Back to notes
+      </Link>
+    </main>
+  );
 }

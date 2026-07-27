@@ -16,11 +16,15 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
+      /** Keep cached reads available while offline (≥30 min per assignment). */
+      gcTime: 35 * 60_000,
       retry: shouldRetryQuery,
       refetchOnWindowFocus: false,
+      networkMode: "offlineFirst",
     },
     mutations: {
       retry: false,
+      networkMode: "offlineFirst",
     },
   },
 });

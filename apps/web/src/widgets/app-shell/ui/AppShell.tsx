@@ -2,6 +2,10 @@ import { NavLink, Outlet, useLocation } from "react-router";
 import { can, SessionBadge, useRole, type Capability } from "@entities/user";
 import { RoleSwitcher } from "@features/switch-role";
 import { RealtimeStatusBadge } from "@features/realtime-sync";
+import {
+  ConnectivityBanner,
+  useEffectiveOnline,
+} from "@features/offline-queue";
 import { ErrorBoundary } from "@shared/ui/error-boundary";
 
 type NavItem = {
@@ -27,6 +31,7 @@ function navClass(isActive: boolean, allowed: boolean) {
 export function AppShell() {
   const role = useRole();
   const location = useLocation();
+  const online = useEffectiveOnline();
 
   return (
     <div className="min-h-screen">
@@ -63,12 +68,13 @@ export function AppShell() {
             </nav>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            <RealtimeStatusBadge />
+            <RealtimeStatusBadge online={online} />
             <RoleSwitcher />
             <SessionBadge />
           </div>
         </div>
       </header>
+      <ConnectivityBanner />
       <ErrorBoundary key={location.pathname} label="page">
         <Outlet />
       </ErrorBoundary>

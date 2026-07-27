@@ -1,2 +1,7 @@
 export { queryClient } from "./query-client";
-export { apiFetch, ApiError, setActorIdProvider } from "./http";
+export {
+  apiFetch,
+  ApiError,
+  isNetworkError,
+  setActorIdProvider,
+} from "./http";

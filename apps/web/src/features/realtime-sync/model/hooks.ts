@@ -23,7 +23,12 @@ export function useRealtimeBootstrap() {
   }, [actor.displayName, actor.id, actor.role]);
 
   useEffect(() => {
-    realtimeClient.connect();
+    // Connect only when the browser is online; offline-queue owns disconnect/reconnect.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      realtimeClient.disconnect();
+    } else {
+      realtimeClient.connect();
+    }
     const unsub = realtimeClient.subscribeMessages((msg) => {
       if (!isRealtimeEvent(msg)) return;
       applyRealtimeEvent(queryClient, msg);

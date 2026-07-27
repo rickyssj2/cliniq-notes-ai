@@ -5,11 +5,14 @@ import {
 } from "@entities/note";
 import { NotesFilters, useNotesListSearchParams } from "@features/filter-notes";
 import { BulkActionsBar } from "@features/bulk-note-actions";
+import { useEffectiveOnline } from "@features/offline-queue";
+import { isNetworkError } from "@shared/api";
 import { NotesTable } from "@widgets/notes-table";
 
 export function NotesListPage() {
   const { filters, patch, hasActiveFilters, toggleSort } =
     useNotesListSearchParams();
+  const online = useEffectiveOnline();
   const query = useNotesInfiniteQuery(filters);
 
   const notes = useMemo(
@@ -22,10 +25,16 @@ export function NotesListPage() {
     return map;
   }, [notes]);
 
-  const total = query.data?.pages[0]?.meta.total ?? 0;
+  const total = query.data?.pages[0]?.meta.total ?? notes.length;
 
-  let emptyMode: "loading" | "empty" | "no-results" | "ready" = "ready";
-  if (query.isLoading) emptyMode = "loading";
+  const offlineEmpty =
+    notes.length === 0 &&
+    (!online || isNetworkError(query.error) || (query.isError && !online));
+
+  let emptyMode: "loading" | "empty" | "no-results" | "offline" | "ready" =
+    "ready";
+  if (query.isLoading && notes.length === 0 && online) emptyMode = "loading";
+  else if (offlineEmpty) emptyMode = "offline";
   else if (notes.length === 0 && hasActiveFilters) emptyMode = "no-results";
   else if (notes.length === 0) emptyMode = "empty";
 
@@ -33,12 +42,12 @@ export function NotesListPage() {
     <main className="mx-auto max-w-6xl space-y-6 px-6 py-8 pb-28">
       <div className="space-y-2">
         <p className="text-sm font-medium tracking-[0.16em] text-[var(--muted)] uppercase">
-          Phase 7 · Notes
+          Phase 8 · Notes
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">Notes</h1>
         <p className="max-w-2xl text-sm text-[var(--muted)]">
-          Virtualized list with viewport WebSocket subscriptions. Open a second
-          tab — status chips and presence avatars update live (header shows Live).
+          Virtualized list with viewport WebSocket subscriptions. Cached pages
+          stay readable offline; edits queue to IndexedDB until you’re back.
         </p>
       </div>
 
@@ -60,10 +69,11 @@ export function NotesListPage() {
       <NotesTable
         notes={notes}
         total={total}
-        isLoading={query.isLoading}
+        isLoading={query.isLoading && notes.length === 0}
         isFetchingNextPage={query.isFetchingNextPage}
-        hasNextPage={Boolean(query.hasNextPage)}
+        hasNextPage={Boolean(query.hasNextPage) && online}
         fetchNextPage={() => {
+          if (!online) return;
           void query.fetchNextPage();
         }}
         sort={filters.sort}

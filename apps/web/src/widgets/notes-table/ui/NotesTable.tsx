@@ -28,7 +28,7 @@ type Props = {
   sort: NotesSortField;
   order: "asc" | "desc";
   onToggleSort: (field: NotesSortField) => void;
-  emptyMode: "loading" | "empty" | "no-results" | "ready";
+  emptyMode: "loading" | "empty" | "no-results" | "offline" | "ready";
 };
 
 function SortHeader({
@@ -139,6 +139,18 @@ export function NotesTable({
         >
           Open API Lab
         </Link>
+      </div>
+    );
+  }
+
+  if (emptyMode === "offline") {
+    return (
+      <div className="rounded-lg border border-dashed border-amber-200 bg-amber-50/50 px-6 py-16 text-center">
+        <p className="font-medium text-amber-950">You’re offline</p>
+        <p className="mt-2 text-sm text-amber-900/80">
+          No notes are cached for these filters. Browse the list while online
+          first — loaded pages stay available offline for ~35 minutes.
+        </p>
       </div>
     );
   }

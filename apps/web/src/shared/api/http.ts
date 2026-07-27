@@ -11,6 +11,13 @@ export class ApiError extends Error {
   }
 }
 
+/** Failed fetch / no HTTP response (DevTools Offline, DNS, etc.). */
+export function isNetworkError(err: unknown): boolean {
+  if (err instanceof ApiError && err.status === 0) return true;
+  if (err instanceof TypeError) return true;
+  return false;
+}
+
 type ActorIdProvider = () => string | null;
 
 let actorIdProvider: ActorIdProvider = () => null;
@@ -25,14 +32,22 @@ export async function apiFetch<T>(
   init?: RequestInit,
 ): Promise<{ status: number; data: T }> {
   const actorId = actorIdProvider();
-  const res = await fetch(`${config.apiBaseUrl}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(actorId ? { "X-Actor-Id": actorId } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${config.apiBaseUrl}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(actorId ? { "X-Actor-Id": actorId } : {}),
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (err) {
+    throw new ApiError(0, {
+      error: "network_error",
+      message: err instanceof Error ? err.message : "Failed to fetch",
+    });
+  }
 
   const text = await res.text();
   const data = text ? (JSON.parse(text) as T) : (null as T);

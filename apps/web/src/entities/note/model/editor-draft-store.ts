@@ -26,6 +26,12 @@ type EditorDraftState = {
     baseVersionId: string;
     sections: Record<SoapSection, string>;
   }) => void;
+  /** Restore a queued offline save after reload (not dirty — already enqueued). */
+  applyQueuedSnapshot: (input: {
+    noteId: string;
+    baseVersionId: string;
+    sections: Record<SoapSection, string>;
+  }) => void;
   clear: (noteId: string) => void;
   getDraft: (noteId: string) => EditorDraft | undefined;
 };
@@ -133,6 +139,22 @@ export const useEditorDraftStore = create<EditorDraftState>((set, get) => ({
           baseSections: existing?.baseSections ?? copySections(sections),
           sections: { ...sections },
           dirty: { S: true, O: true, A: true, P: true },
+        },
+      },
+    });
+  },
+
+  applyQueuedSnapshot: ({ noteId, baseVersionId, sections }) => {
+    const copy = copySections(sections);
+    set({
+      drafts: {
+        ...get().drafts,
+        [noteId]: {
+          noteId,
+          baseVersionId,
+          baseSections: copySections(copy),
+          sections: copy,
+          dirty: emptyDirty(),
         },
       },
     });

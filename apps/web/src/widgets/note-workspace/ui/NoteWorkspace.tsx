@@ -19,17 +19,24 @@ import {
   PresenceAvatars,
   useNotePresenceChannel,
 } from "@features/realtime-sync";
+import {
+  getLatestPendingCreateVersion,
+  useEffectiveOnline,
+  usePendingMutationCount,
+  type CreateVersionPayload,
+} from "@features/offline-queue";
 import { Button } from "@shared/ui/button";
 
 type Props = {
   note: NoteDetail;
 };
 
-function saveLabel(status: string, dirty: boolean): string {
+function saveLabel(status: string, dirty: boolean, pending: number): string {
   if (status === "saving") return "Saving…";
   if (status === "conflict") return "Conflict";
   if (status === "error") return "Retry save";
   if (dirty || status === "dirty") return "Save now";
+  if (pending > 0) return "Queued";
   if (status === "saved") return "Saved";
   return "Saved";
 }
@@ -38,27 +45,39 @@ export function NoteWorkspace({ note }: Props) {
   const actor = useActor();
   const location = useLocation();
   const hydrate = useEditorDraftStore((s) => s.hydrate);
+  const applyQueuedSnapshot = useEditorDraftStore((s) => s.applyQueuedSnapshot);
   const draft = useEditorDraftStore((s) => s.drafts[note.id]);
   const conflictOpen = useConflictStore((s) =>
     s.open?.noteId === note.id ? s.open : null,
   );
-  // Must use stable EMPTY_PRESENCE — `?? []` allocates every select → infinite re-renders.
   const viewers = usePresenceStore(
     (s) => s.byNoteId[note.id] ?? EMPTY_PRESENCE,
   );
   const [autosaveOn, setAutosaveOn] = useState(true);
   const [demoMsg, setDemoMsg] = useState<string | null>(null);
+  const online = useEffectiveOnline();
+  const pendingAll = usePendingMutationCount();
 
   useNotePresenceChannel(note.id);
 
-  // Depend on version id only — content object identity changes on every Query patch.
   useEffect(() => {
     hydrate({
       noteId: note.id,
       baseVersionId: note.currentVersion.id,
       content: note.currentVersion.content,
     });
-  }, [hydrate, note.id, note.currentVersion.id]);
+    void getLatestPendingCreateVersion(note.id).then((item) => {
+      if (!item) return;
+      const current = useEditorDraftStore.getState().drafts[note.id];
+      if (current && isDraftDirty(current)) return;
+      const payload = item.payload as CreateVersionPayload;
+      applyQueuedSnapshot({
+        noteId: note.id,
+        baseVersionId: payload.baseVersionId,
+        sections: payload.content.sections,
+      });
+    });
+  }, [hydrate, applyQueuedSnapshot, note.id, note.currentVersion.id]);
 
   const readOnly =
     isContentReadOnly(note.status) ||
@@ -83,7 +102,7 @@ export function NoteWorkspace({ note }: Props) {
             ← Notes
           </Link>
           <p className="text-sm font-medium tracking-[0.16em] text-[var(--muted)] uppercase">
-            Phase 7 · Real-time
+            Phase 8 · Offline queue
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">
             {note.patient.displayName}
@@ -97,6 +116,11 @@ export function NoteWorkspace({ note }: Props) {
             </span>
             {note.assignedReviewer && (
               <span>Reviewer: {note.assignedReviewer.displayName}</span>
+            )}
+            {pendingAll > 0 && (
+              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-900 uppercase">
+                {pendingAll} queued
+              </span>
             )}
           </div>
         </div>
@@ -123,7 +147,7 @@ export function NoteWorkspace({ note }: Props) {
               }
               onClick={() => void autosave.saveNow()}
             >
-              {saveLabel(autosave.status, dirty)}
+              {saveLabel(autosave.status, dirty, pendingAll)}
             </Button>
           </div>
           <p className="text-xs text-[var(--muted)]">
@@ -135,11 +159,15 @@ export function NoteWorkspace({ note }: Props) {
                   ? "Coalesced save in flight…"
                   : dirty
                     ? autosaveOn
-                      ? "Dirty — autosave in ~800ms"
+                      ? online
+                        ? "Dirty — autosave in ~800ms"
+                        : "Dirty — will queue offline (~800ms)"
                       : "Unsaved section edits"
-                    : autosave.status === "saved"
-                      ? "All sections clean"
-                      : "No local changes"}
+                    : pendingAll > 0
+                      ? "Locally clean · waiting for sync"
+                      : autosave.status === "saved"
+                        ? "All sections clean"
+                        : "No local changes"}
           </p>
           {autosave.lastError && autosave.status === "error" && (
             <p className="max-w-sm text-right text-xs text-[var(--danger)]">
@@ -164,8 +192,8 @@ export function NoteWorkspace({ note }: Props) {
             Demo controls
           </h2>
           <p className="text-xs text-[var(--muted)]">
-            Open this note in a second tab to see presence + live status. Force
-            conflict / fail-next still work for save demos.
+            Use DevTools → Network → Offline to queue saves. Reload while
+            offline, then go online — watch the banner drain the queue.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -191,32 +219,6 @@ export function NoteWorkspace({ note }: Props) {
               }
             >
               Fail next save (500)
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                void setDevFailNext({ noteGets: 1 }).then(() =>
-                  setDemoMsg(
-                    "Next detail refetch will 500 — edit while dirty to see hydrate keep your draft",
-                  ),
-                )
-              }
-            >
-              Fail next detail GET (500)
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                void setDevFailNext({ conflicts: 1 }).then(() =>
-                  setDemoMsg("Next version POST will force 409 (server counter)"),
-                )
-              }
-            >
-              Queue server conflict (fail-next)
             </Button>
           </div>
           {demoMsg && (

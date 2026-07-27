@@ -67,6 +67,15 @@ pnpm dev
 4. In tab A, edit SOAP and leave dirty; in tab B save a different edit — tab A opens the same three-way conflict merge UI
 5. Kill the API briefly or throttle network — badge shows **Reconnecting…**, then **Live**; missed events replay via `lastEventId`
 
+### Try in UI — Phase 8
+
+1. Browse `/notes` while online (load a page of rows), open an `IN_REVIEW` note
+2. DevTools → Network → **Offline** — header badge flips to **Offline**, amber banner appears
+3. Edit SOAP — autosave enqueues to IndexedDB; button may show **Queued**
+4. ← Notes — cached list still shows; opening an uncached note shows **You’re offline** (not “not found”)
+5. Reload while still offline — queued content restores from Dexie; pending count survives
+6. Go online — banner **Back online · syncing…**, queue drains, revision bumps
+
 ## Workspace
 
 | Package | Role |
@@ -97,9 +106,9 @@ Filled in as phases land. Required by the assignment:
 
 _In progress. So far:_
 - **Pure domain (`packages/domain`)** — lifecycle invariants via `noteMachine` (no React, no I/O)
-- **Zustand** — session/actor; note selection; SOAP editor drafts; presence; conflict modal payload
-- **TanStack Query** — notes list/detail; optimistic patches; live WS reconciliation
-- **Dexie** — opened at boot; queues used Phase 8/10
+- **Zustand** — session/actor; note selection; SOAP editor drafts; presence; conflict modal; connectivity
+- **TanStack Query** — notes list/detail; optimistic patches; live WS reconciliation; 35m `gcTime` for offline reads
+- **Dexie** — mutation write queue (Phase 8); telemetry park (Phase 10)
 - **URL** — list filters/sort/search (preserved across detail Links)
 - **WebSocket** — viewport + detail subscriptions; reconnect cursor replay
 
@@ -131,7 +140,7 @@ _Phase 6 (detail):_ coalesced autosave paints draft SOAP into the detail (+ list
 
 ### Offline — Write queue survives reloads
 
-_Pending — Phase 8 (Dexie)._
+Dexie `mutationQueue` holds `create_version` / `transition` intents. Offline autosave **coalesces** pending version rows per note, then marks the draft clean locally. On reload, pending SOAP is rehydrated from the queue. Reconnect drains `orderBy(createdAt)`; `409` opens the same merge UI. Connectivity banner + header badge both follow `navigator.onLine`; WS disconnects while offline. Uncached detail/list reads show an offline message (not “not found”). Query `gcTime` is 35m so cached reads stay available offline.
 
 ### Real-Time — Reconcile channel with optimistic state
 
@@ -200,7 +209,7 @@ Capabilities live in `entities/user/model/permissions.ts`. Mock actors live in `
 - [x] Phase 5 — Note detail + SOAP editor
 - [x] Phase 6 — Autosave & conflicts
 - [x] Phase 7 — Real-time
-- [ ] Phase 8 — Offline queue
+- [x] Phase 8 — Offline queue
 - [ ] Phase 9 — Version history
 - [ ] Phase 10 — Telemetry
 - [ ] Phase 11 — Simulation, tests, README polish

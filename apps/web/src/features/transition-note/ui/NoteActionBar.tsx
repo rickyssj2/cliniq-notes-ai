@@ -11,6 +11,11 @@ import {
   usePatchNoteInLists,
 } from "@entities/note";
 import { useActor } from "@entities/user";
+import {
+  enqueueTransition,
+  isEffectivelyOnline,
+} from "@features/offline-queue";
+import { ApiError } from "@shared/api";
 import { Button } from "@shared/ui/button";
 
 const ACTION_LABEL: Record<NoteAction, string> = {
@@ -72,20 +77,55 @@ export function NoteActionBar({ note }: Props) {
     const target = actions.find((a) => a.action === action);
     if (!target?.enabled) return;
 
+    const clientMutationId = `ui_${action}_${note.id}_${crypto.randomUUID()}`;
     setBusy(action);
     try {
-      const result = await transitionNote({
-        noteId: note.id,
-        to: target.to,
-        actorId: actor.id,
-        reason,
-        mfaVerified: true,
-        clientMutationId: `ui_${action}_${note.id}_${crypto.randomUUID()}`,
-      });
-      patchList(result.note);
-      await queryClient.invalidateQueries({
-        queryKey: notesQueryKeys.detail(note.id),
-      });
+      const queue = async () => {
+        await enqueueTransition({
+          noteId: note.id,
+          clientMutationId,
+          to: target.to,
+          actorId: actor.id,
+          reason,
+          mfaVerified: true,
+        });
+        patchList({
+          ...note,
+          status: target.to,
+          updatedAt: new Date().toISOString(),
+        });
+        setError("Queued offline — will sync when back online");
+      };
+
+      if (!isEffectivelyOnline()) {
+        await queue();
+        return;
+      }
+
+      try {
+        const result = await transitionNote({
+          noteId: note.id,
+          to: target.to,
+          actorId: actor.id,
+          reason,
+          mfaVerified: true,
+          clientMutationId,
+        });
+        patchList(result.note);
+        await queryClient.invalidateQueries({
+          queryKey: notesQueryKeys.detail(note.id),
+        });
+      } catch (err) {
+        if (
+          (err instanceof ApiError && err.status === 0) ||
+          err instanceof TypeError ||
+          !isEffectivelyOnline()
+        ) {
+          await queue();
+          return;
+        }
+        throw err;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Transition failed");
     } finally {

@@ -12,6 +12,10 @@ import {
 } from "@entities/note";
 import { ApiError } from "@shared/api";
 import {
+  enqueueCreateVersion,
+  isEffectivelyOnline,
+} from "@features/offline-queue";
+import {
   createCoalescedSaver,
   type CoalescedSaveStatus,
 } from "./coalesced-saver";
@@ -24,6 +28,13 @@ function isVersionConflict(body: unknown): body is VersionConflictError {
     body !== null &&
     (body as VersionConflictError).error === "version_conflict"
   );
+}
+
+function isNetworkFailure(err: unknown): boolean {
+  if (!isEffectivelyOnline()) return true;
+  if (err instanceof ApiError && err.status === 0) return true;
+  if (err instanceof TypeError) return true;
+  return false;
 }
 
 export type AutosaveControllers = {
@@ -93,6 +104,23 @@ export function useCoalescedAutosave(opts: {
       updatedAt: new Date().toISOString(),
     });
 
+    const queueLocally = async () => {
+      await enqueueCreateVersion({
+        noteId: n.id,
+        clientMutationId,
+        baseVersionId: d.baseVersionId,
+        content: { sections: d.sections },
+        actorId: actorIdRef.current,
+      });
+      // Keep baseVersionId until drain acks — draft looks clean, intent is in Dexie.
+      markCleanRef.current(n.id, d.baseVersionId);
+      return { ok: true as const };
+    };
+
+    if (!isEffectivelyOnline()) {
+      return queueLocally();
+    }
+
     try {
       const headers: Record<string, string> = {};
       if (forceRef.current) {
@@ -123,25 +151,29 @@ export function useCoalescedAutosave(opts: {
       });
       return { ok: true };
     } catch (err) {
+      if (isNetworkFailure(err)) {
+        return queueLocally();
+      }
+
       if (snapshot) {
         qc.setQueryData(detailKey, snapshot);
       }
       await qc.invalidateQueries({ queryKey: notesQueryKeys.lists() });
 
-          if (
-            err instanceof ApiError &&
-            err.status === 409 &&
-            isVersionConflict(err.body)
-          ) {
-            useConflictStore.getState().openConflict({
-              noteId: n.id,
-              conflict: err.body,
-              yours: d,
-              source: "save",
-            });
-            onConflictRef.current?.(err.body, d);
-            return { ok: false, kind: "conflict", message: "Version conflict" };
-          }
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        isVersionConflict(err.body)
+      ) {
+        useConflictStore.getState().openConflict({
+          noteId: n.id,
+          conflict: err.body,
+          yours: d,
+          source: "save",
+        });
+        onConflictRef.current?.(err.body, d);
+        return { ok: false, kind: "conflict", message: "Version conflict" };
+      }
       const message =
         err instanceof ApiError
           ? `Save failed (${err.status}): ${JSON.stringify(err.body)}`
