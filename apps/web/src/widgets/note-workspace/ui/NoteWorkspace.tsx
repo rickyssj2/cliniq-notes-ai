@@ -1,36 +1,48 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { isContentReadOnly, type NoteDetail } from "@soulside/domain";
+import { Link, useLocation } from "react-router";
+import type { NoteDetail, VersionConflictError } from "@soulside/domain";
+import { isContentReadOnly } from "@soulside/domain";
 import {
   isDraftDirty,
-  notesQueryKeys,
-  saveNoteVersion,
+  setDevFailNext,
   useEditorDraftStore,
-  usePatchNoteInLists,
   NoteStatusBadge,
+  type EditorDraft,
 } from "@entities/note";
 import { can as canCapability, useActor } from "@entities/user";
 import { SoapEditor } from "@features/edit-soap";
 import { NoteActionBar } from "@features/transition-note";
-import { ApiError } from "@shared/api";
+import { useCoalescedAutosave } from "@features/autosave-note";
+import { ConflictMergeModal } from "@features/resolve-conflict";
 import { Button } from "@shared/ui/button";
 
 type Props = {
   note: NoteDetail;
 };
 
+type ConflictState = {
+  conflict: VersionConflictError;
+  yours: EditorDraft;
+};
+
+function saveLabel(status: string, dirty: boolean): string {
+  if (status === "saving") return "Saving…";
+  if (status === "conflict") return "Conflict";
+  if (status === "error") return "Retry save";
+  if (dirty || status === "dirty") return "Save now";
+  if (status === "saved") return "Saved";
+  return "Saved";
+}
+
 export function NoteWorkspace({ note }: Props) {
   const actor = useActor();
-  const queryClient = useQueryClient();
-  const patchList = usePatchNoteInLists();
+  const location = useLocation();
   const hydrate = useEditorDraftStore((s) => s.hydrate);
-  const markClean = useEditorDraftStore((s) => s.markClean);
+  const applyResolution = useEditorDraftStore((s) => s.applyResolution);
   const draft = useEditorDraftStore((s) => s.drafts[note.id]);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle",
-  );
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [conflictState, setConflictState] = useState<ConflictState | null>(null);
+  const [autosaveOn, setAutosaveOn] = useState(true);
+  const [demoMsg, setDemoMsg] = useState<string | null>(null);
 
   useEffect(() => {
     hydrate({
@@ -51,55 +63,27 @@ export function NoteWorkspace({ note }: Props) {
 
   const dirty = isDraftDirty(draft);
 
-  const onSave = async () => {
-    if (!draft || readOnly || !dirty) return;
-    setSaveState("saving");
-    setSaveError(null);
-    try {
-      const result = await saveNoteVersion({
-        noteId: note.id,
-        baseVersionId: draft.baseVersionId,
-        content: { sections: draft.sections },
-        clientMutationId: `save_${note.id}_${crypto.randomUUID()}`,
-        actorId: actor.id,
-      });
-      markClean(note.id, result.version.id);
-      await queryClient.invalidateQueries({
-        queryKey: notesQueryKeys.detail(note.id),
-      });
-      // Keep list row revision in sync when possible
-      patchList({
-        ...note,
-        currentVersion: {
-          id: result.version.id,
-          revision: result.version.revision,
-          parentVersionId: result.version.parentVersionId,
-        },
-        updatedAt: new Date().toISOString(),
-      });
-      setSaveState("saved");
-    } catch (err) {
-      setSaveState("error");
-      if (err instanceof ApiError) {
-        setSaveError(`Save failed (${err.status}): ${JSON.stringify(err.body)}`);
-      } else {
-        setSaveError(err instanceof Error ? err.message : "Save failed");
-      }
-    }
-  };
+  const autosave = useCoalescedAutosave({
+    note,
+    actorId: actor.id,
+    enabled: autosaveOn && !readOnly && !conflictState,
+    onConflict: (conflict, yours) => {
+      setConflictState({ conflict, yours });
+    },
+  });
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-6 py-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <Link
-            to="/notes"
+            to={{ pathname: "/notes", search: location.search }}
             className="text-sm text-[var(--accent)] underline-offset-4 hover:underline"
           >
             ← Notes
           </Link>
           <p className="text-sm font-medium tracking-[0.16em] text-[var(--muted)] uppercase">
-            Phase 5 · Detail
+            Phase 6 · Autosave & conflicts
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">
             {note.patient.displayName}
@@ -117,25 +101,49 @@ export function NoteWorkspace({ note }: Props) {
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={readOnly || !dirty || saveState === "saving"}
-            onClick={() => void onSave()}
-          >
-            {saveState === "saving" ? "Saving…" : dirty ? "Save draft" : "Saved"}
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+              <input
+                type="checkbox"
+                checked={autosaveOn}
+                disabled={readOnly}
+                onChange={(e) => setAutosaveOn(e.target.checked)}
+              />
+              Autosave
+            </label>
+            <Button
+              type="button"
+              size="sm"
+              disabled={
+                readOnly ||
+                (!dirty && autosave.status !== "error") ||
+                autosave.status === "saving" ||
+                !!conflictState
+              }
+              onClick={() => void autosave.saveNow()}
+            >
+              {saveLabel(autosave.status, dirty)}
+            </Button>
+          </div>
           <p className="text-xs text-[var(--muted)]">
             {readOnly
               ? "Read-only for this status/role"
-              : dirty
-                ? "Unsaved section edits"
-                : saveState === "saved"
-                  ? "All sections clean"
-                  : "No local changes"}
+              : conflictState
+                ? "Resolve the conflict modal to continue"
+                : autosave.status === "saving"
+                  ? "Coalesced save in flight…"
+                  : dirty
+                    ? autosaveOn
+                      ? "Dirty — autosave in ~800ms"
+                      : "Unsaved section edits"
+                    : autosave.status === "saved"
+                      ? "All sections clean"
+                      : "No local changes"}
           </p>
-          {saveError && (
-            <p className="text-xs text-[var(--danger)]">{saveError}</p>
+          {autosave.lastError && autosave.status === "error" && (
+            <p className="max-w-sm text-right text-xs text-[var(--danger)]">
+              {autosave.lastError}
+            </p>
           )}
         </div>
       </div>
@@ -146,13 +154,91 @@ export function NoteWorkspace({ note }: Props) {
         <h2 className="mb-4 text-sm font-semibold tracking-wide uppercase">
           SOAP
         </h2>
-        <SoapEditor noteId={note.id} readOnly={readOnly} />
+        <SoapEditor noteId={note.id} readOnly={readOnly || !!conflictState} />
       </section>
 
-      <p className="text-xs text-[var(--muted)]">
-        Presence indicators arrive in Phase 7. Autosave coalescing + conflict
-        merge arrive in Phase 6 (Save is manual for now).
-      </p>
+      {!readOnly && (
+        <section className="space-y-3 rounded-lg border border-dashed border-[var(--border)] bg-[var(--card)] p-4">
+          <h2 className="text-sm font-semibold tracking-wide uppercase">
+            Demo controls
+          </h2>
+          <p className="text-xs text-[var(--muted)]">
+            Deterministic fail-next / force-conflict (does not require chaos ON).
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={autosave.forceConflictNext ? "default" : "outline"}
+              onClick={() =>
+                autosave.setForceConflictNext(!autosave.forceConflictNext)
+              }
+            >
+              {autosave.forceConflictNext
+                ? "Armed: next save → 409"
+                : "Force conflict on next save"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                void setDevFailNext({ versions: 1 }).then(() =>
+                  setDemoMsg("Next version POST will 500 (rollback optimism)"),
+                )
+              }
+            >
+              Fail next save (500)
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                void setDevFailNext({ noteGets: 1 }).then(() =>
+                  setDemoMsg(
+                    "Next detail refetch will 500 — edit while dirty to see hydrate keep your draft",
+                  ),
+                )
+              }
+            >
+              Fail next detail GET (500)
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                void setDevFailNext({ conflicts: 1 }).then(() =>
+                  setDemoMsg("Next version POST will force 409 (server counter)"),
+                )
+              }
+            >
+              Queue server conflict (fail-next)
+            </Button>
+          </div>
+          {demoMsg && (
+            <p className="text-xs text-[var(--muted)]">{demoMsg}</p>
+          )}
+        </section>
+      )}
+
+      {conflictState && (
+        <ConflictMergeModal
+          conflict={conflictState.conflict}
+          yours={conflictState.yours}
+          onCancel={() => setConflictState(null)}
+          onResolve={(sections, baseVersionId) => {
+            applyResolution({
+              noteId: note.id,
+              baseVersionId,
+              sections,
+            });
+            setConflictState(null);
+            void autosave.saveNow();
+          }}
+        />
+      )}
     </div>
   );
 }

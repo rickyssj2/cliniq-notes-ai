@@ -254,7 +254,44 @@ export function ApiLabPage() {
           </div>
           <p className="text-xs text-[var(--muted)]">
             Tip: turn chaos OFF for predictable demos, then ON to see latency/500s.
+            Fail-next counters (below) work even when chaos is OFF.
           </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                void run("Fail-next conflict", async () => {
+                  await apiFetch("/dev/chaos", {
+                    method: "POST",
+                    body: JSON.stringify({ failNext: { conflicts: 1 } }),
+                  });
+                  pushLog("info", "Next version POST will force 409");
+                })
+              }
+            >
+              Fail-next: conflict ×1
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                void run("Fail-next version 500", async () => {
+                  await apiFetch("/dev/chaos", {
+                    method: "POST",
+                    body: JSON.stringify({ failNext: { versions: 1 } }),
+                  });
+                  pushLog("info", "Next version POST will 500");
+                })
+              }
+            >
+              Fail-next: version 500 ×1
+            </Button>
+          </div>
         </div>
       </section>
 

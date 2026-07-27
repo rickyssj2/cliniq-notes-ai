@@ -29,6 +29,7 @@ export {
   fetchNoteDetail,
   transitionNote,
   saveNoteVersion,
+  setDevFailNext,
   fetchDevUsers,
   type DevUser,
 } from "./api/notes-api";

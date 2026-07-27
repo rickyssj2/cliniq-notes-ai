@@ -473,11 +473,53 @@ export class NoteStore {
       return { status: 400, body: { error: "invalid_body" } };
     }
 
-    const head = this.versions.get(note.currentVersionId);
+    let head = this.versions.get(note.currentVersionId);
     if (!head) return { status: 500, body: { error: "missing_head" } };
+
+    // Demo: advance head as a concurrent writer, then conflict against stale base.
+    if (opts?.forceConflict && body.baseVersionId === head.id) {
+      const concurrent = this.users.get("usr_clin_002") ?? actor;
+      const sneakyId = `ver_${noteId}_${head.revision + 1}_${Date.now().toString(36)}_c`;
+      const sneaky: StoredVersion = {
+        id: sneakyId,
+        noteId,
+        revision: head.revision + 1,
+        parentVersionId: head.id,
+        content: {
+          sections: {
+            S: head.content.sections.S,
+            O: head.content.sections.O,
+            A: head.content.sections.A,
+            P: `${head.content.sections.P}\n[concurrent edit @ ${new Date().toISOString()}]`,
+          },
+        },
+        authoredBy: concurrent,
+        createdAt: new Date().toISOString(),
+      };
+      this.versions.set(sneakyId, sneaky);
+      note.currentVersionId = sneakyId;
+      note.updatedAt = sneaky.createdAt;
+      this.emit({
+        type: "note.version_added",
+        noteId,
+        version: {
+          id: sneaky.id,
+          revision: sneaky.revision,
+          parentVersionId: head.id,
+        },
+        at: sneaky.createdAt,
+      });
+      head = sneaky;
+    }
 
     if (opts?.forceConflict || body.baseVersionId !== head.id) {
       const commonAncestor = this.findCommonAncestor(body.baseVersionId, head.id);
+      const ancestorVersion =
+        (commonAncestor && this.versions.get(commonAncestor.id)) ||
+        (head.parentVersionId
+          ? this.versions.get(head.parentVersionId)
+          : undefined) ||
+        head;
       const conflict: VersionConflictError = {
         error: "version_conflict",
         current: {
@@ -485,11 +527,13 @@ export class NoteStore {
           revision: head.revision,
           parentVersionId: head.parentVersionId ?? null,
           authoredBy: head.authoredBy,
+          content: head.content,
         },
-        commonAncestor: commonAncestor ?? {
-          id: head.parentVersionId ?? head.id,
-          revision: Math.max(1, head.revision - 1),
-          parentVersionId: null,
+        commonAncestor: {
+          id: ancestorVersion.id,
+          revision: ancestorVersion.revision,
+          parentVersionId: ancestorVersion.parentVersionId ?? null,
+          content: ancestorVersion.content,
         },
       };
       return { status: 409, body: conflict };
@@ -530,7 +574,7 @@ export class NoteStore {
     return { status: 201, body: response };
   }
 
-  private findCommonAncestor(aId: string, bId: string) {
+  private findCommonAncestor(aId: string, bId: string): StoredVersion | null {
     const ancestors = new Set<string>();
     let cur: StoredVersion | undefined = this.versions.get(aId);
     while (cur) {
@@ -541,13 +585,7 @@ export class NoteStore {
     }
     cur = this.versions.get(bId);
     while (cur) {
-      if (ancestors.has(cur.id)) {
-        return {
-          id: cur.id,
-          revision: cur.revision,
-          parentVersionId: cur.parentVersionId ?? null,
-        };
-      }
+      if (ancestors.has(cur.id)) return cur;
       cur = cur.parentVersionId
         ? this.versions.get(cur.parentVersionId)
         : undefined;

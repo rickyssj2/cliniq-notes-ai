@@ -43,11 +43,13 @@ export async function saveNoteVersion(input: {
   content: SoapContent;
   clientMutationId: string;
   actorId?: string;
+  headers?: Record<string, string>;
 }) {
   const { data } = await apiFetch<{
     version: { id: string; revision: number; parentVersionId: string };
   }>(`/notes/${input.noteId}/versions`, {
     method: "POST",
+    headers: input.headers,
     body: JSON.stringify({
       baseVersionId: input.baseVersionId,
       content: input.content,
@@ -56,6 +58,26 @@ export async function saveNoteVersion(input: {
     }),
   });
   return data;
+}
+
+export async function setDevFailNext(patch: {
+  versions?: number;
+  transitions?: number;
+  noteGets?: number;
+  conflicts?: number;
+}) {
+  const { data } = await apiFetch<{
+    failNext: {
+      versions: number;
+      transitions: number;
+      noteGets: number;
+      conflicts: number;
+    };
+  }>("/dev/chaos", {
+    method: "POST",
+    body: JSON.stringify({ failNext: patch }),
+  });
+  return data.failNext;
 }
 
 export async function transitionNote(input: {

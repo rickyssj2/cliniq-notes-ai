@@ -18,6 +18,12 @@ type EditorDraftState = {
   }) => void;
   setSection: (noteId: string, section: SoapSection, value: string) => void;
   markClean: (noteId: string, baseVersionId: string) => void;
+  /** After conflict merge: retarget baseVersionId and mark dirty for autosave. */
+  applyResolution: (input: {
+    noteId: string;
+    baseVersionId: string;
+    sections: Record<SoapSection, string>;
+  }) => void;
   clear: (noteId: string) => void;
   getDraft: (noteId: string) => EditorDraft | undefined;
 };
@@ -86,6 +92,20 @@ export const useEditorDraftStore = create<EditorDraftState>((set, get) => ({
           ...draft,
           baseVersionId,
           dirty: emptyDirty(),
+        },
+      },
+    });
+  },
+
+  applyResolution: ({ noteId, baseVersionId, sections }) => {
+    set({
+      drafts: {
+        ...get().drafts,
+        [noteId]: {
+          noteId,
+          baseVersionId,
+          sections: { ...sections },
+          dirty: { S: true, O: true, A: true, P: true },
         },
       },
     });

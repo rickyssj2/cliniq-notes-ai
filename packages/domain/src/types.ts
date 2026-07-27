@@ -116,8 +116,11 @@ export type VersionConflictError = {
   error: "version_conflict";
   current: VersionRef & {
     authoredBy: UserRef;
+    content: SoapContent;
   };
-  commonAncestor: VersionRef;
+  commonAncestor: VersionRef & {
+    content: SoapContent;
+  };
 };
 
 export type TransitionRequest = {

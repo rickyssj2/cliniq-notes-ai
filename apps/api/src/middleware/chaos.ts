@@ -19,17 +19,48 @@ const config: ChaosConfig = {
   enabled: process.env.CHAOS !== "0",
 };
 
+/** Deterministic one-shots for demos (not gated by `enabled`). */
+const failNext = {
+  versions: 0,
+  transitions: 0,
+  noteGets: 0,
+  conflicts: 0,
+};
+
 export function getChaosConfig() {
-  return { ...config };
+  return {
+    ...config,
+    failNext: { ...failNext },
+  };
 }
 
-export function setChaosConfig(patch: Partial<ChaosConfig>) {
-  Object.assign(config, patch);
+export function setChaosConfig(
+  patch: Partial<ChaosConfig> & {
+    failNext?: Partial<typeof failNext>;
+  },
+) {
+  const { failNext: failPatch, ...rest } = patch;
+  Object.assign(config, rest);
+  if (failPatch) Object.assign(failNext, failPatch);
 }
 
 export function shouldForceConflict() {
+  if (failNext.conflicts > 0) {
+    failNext.conflicts -= 1;
+    return true;
+  }
   if (!config.enabled) return false;
   return Math.random() < config.conflictRate;
+}
+
+export function consumeFailNext(
+  kind: "versions" | "transitions" | "noteGets",
+): boolean {
+  if (failNext[kind] > 0) {
+    failNext[kind] -= 1;
+    return true;
+  }
+  return false;
 }
 
 function sleep(ms: number) {

@@ -50,6 +50,15 @@ pnpm dev
 6. Open a `LOCKED` note — editor read-only + lock message (no amend path)
 7. As **Auditor Lee**, open any note — SOAP read-only (no `mutate_workflow`)
 
+### Try in UI — Phase 6
+
+1. Open an `IN_REVIEW` note as **Dr. A**. Edit SOAP — watch status flip to dirty, then **Saving…** (~800ms), then **Saved** without clicking Save
+2. Type quickly — saves coalesce (one in-flight POST; at most one follow-up)
+3. Arm **Force conflict on next save**, edit, wait for autosave (or Save now) → three-way merge modal (ancestor / yours / server with word diffs)
+4. Pick sections → **Resolve & save** — revision advances; no duplicate versions if you retry the same `clientMutationId`
+5. **Fail next save (500)** then edit — optimistic paint rolls back; error shows; Retry reuses the same mutation id
+6. List filters survive detail ↔ back (search params preserved on Links)
+
 ## Workspace
 
 | Package | Role |
@@ -80,10 +89,10 @@ Filled in as phases land. Required by the assignment:
 
 _In progress. So far:_
 - **Pure domain (`packages/domain`)** — lifecycle invariants via `noteMachine` (no React, no I/O)
-- **Zustand (`entities/user`)** — session/actor (persisted); more client UI stores later
-- **TanStack Query** — wired in `app` providers (server entities land Phase 4+)
+- **Zustand** — session/actor; note selection; SOAP editor drafts (dirty + `baseVersionId`)
+- **TanStack Query** — notes list/detail; optimistic list + detail patches with rollback
 - **Dexie** — opened at boot; queues used Phase 8/10
-- **URL** — filters later (Phase 4)
+- **URL** — list filters/sort/search (preserved across detail Links)
 
 ### State Machine — How the note lifecycle is modelled
 
@@ -103,11 +112,13 @@ pnpm --filter @soulside/domain test
 
 ### Optimistic Updates — Apply and roll back
 
-_Phase 4 (list):_ bulk transitions patch the TanStack Query infinite-list cache optimistically, then reconcile with the server response or roll back on failure. Editor autosave optimism lands in Phase 6.
+_Phase 4 (list):_ bulk transitions patch the TanStack Query infinite-list cache optimistically, then reconcile with the server response or roll back on failure.
+
+_Phase 6 (detail):_ coalesced autosave paints draft SOAP into the detail (+ list `updatedAt`) before the POST resolves; on `500`/`409` the snapshot is restored. Conflicts open a merge modal instead of silently dropping edits.
 
 ### Concurrency — Version conflicts without data loss
 
-_Server side (Phase 2):_ `POST /api/notes/:id/versions` requires `baseVersionId`; mismatch (or chaos injection) returns `409 version_conflict` with `current` + `commonAncestor`. Client merge UI lands in Phase 6. Mutations are idempotent via `clientMutationId`.
+`POST /api/notes/:id/versions` requires `baseVersionId`. Mismatch (or `X-Force-Conflict: 1` / chaos / fail-next) returns `409 version_conflict` with **content** for `current` + `commonAncestor`. Detail UI: three-way merge (yours / server / ancestor), word-level `diff`, resolve retargets `baseVersionId` to server head and saves once. Mutations stay idempotent via `clientMutationId` (retry after 5xx reuses the id).
 
 ### Offline — Write queue survives reloads
 
@@ -149,7 +160,7 @@ _Pending — built on shadcn/Radix primitives; posture documented by Phase 11._
 | POST | `/api/notes/:id/transitions` | `{ to, actorId, reason?, mfaVerified?, clientMutationId? }` — validated by `noteMachine` |
 | WS | `/ws` | `subscribe` / `replay` / `presence.join` |
 
-Chaos (default on): 100–800ms latency, ~5% `500`, ~2% forced version conflicts. Disable with `CHAOS=0`. Auto-seed 5000 notes unless `AUTO_SEED=0`.
+Chaos (default on): 100–800ms latency, ~5% `500`, ~2% forced version conflicts. Disable with `CHAOS=0`. Deterministic demos via `POST /api/dev/chaos` `{ "failNext": { "versions": 1, "noteGets": 1, "conflicts": 1, "transitions": 1 } }` or request header `X-Force-Conflict: 1`. Auto-seed 5000 notes unless `AUTO_SEED=0`.
 
 ```bash
 curl -X POST http://localhost:3001/api/dev/seed -H 'content-type: application/json' -d '{"count":5000,"seed":42}'
@@ -178,7 +189,7 @@ Capabilities live in `entities/user/model/permissions.ts`. Mock actors live in `
 - [x] Phase 3 — Auth shell + Query plumbing
 - [x] Phase 4 — Virtualized notes list
 - [x] Phase 5 — Note detail + SOAP editor
-- [ ] Phase 6 — Autosave & conflicts
+- [x] Phase 6 — Autosave & conflicts
 - [ ] Phase 7 — Real-time
 - [ ] Phase 8 — Offline queue
 - [ ] Phase 9 — Version history

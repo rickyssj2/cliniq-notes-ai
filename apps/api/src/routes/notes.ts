@@ -2,7 +2,10 @@ import { Hono } from "hono";
 import type { NoteStatus } from "@soulside/domain";
 import { NOTE_STATUSES } from "@soulside/domain";
 import { store } from "../store/store";
-import { shouldForceConflict } from "../middleware/chaos";
+import {
+  consumeFailNext,
+  shouldForceConflict,
+} from "../middleware/chaos";
 
 export const notesRoutes = new Hono();
 
@@ -32,25 +35,54 @@ notesRoutes.get("/", (c) => {
 });
 
 notesRoutes.get("/:id", (c) => {
+  if (consumeFailNext("noteGets")) {
+    return c.json(
+      {
+        error: "injected_failure",
+        message: "Simulated 500 on note detail (fail-next)",
+      },
+      500,
+    );
+  }
   const detail = store.getNote(c.req.param("id"));
   if (!detail) return c.json({ error: "not_found" }, 404);
   return c.json(detail);
 });
 
 notesRoutes.post("/:id/versions", async (c) => {
+  if (consumeFailNext("versions")) {
+    return c.json(
+      {
+        error: "injected_failure",
+        message: "Simulated 500 on version save (fail-next)",
+      },
+      500,
+    );
+  }
+
   const body = await c.req.json();
   const actorId =
     (typeof body.actorId === "string" && body.actorId) ||
     c.req.header("x-actor-id") ||
     "usr_clin_001";
 
+  const headerForce = c.req.header("x-force-conflict") === "1";
   const result = store.createVersion(c.req.param("id"), body, actorId, {
-    forceConflict: shouldForceConflict(),
+    forceConflict: headerForce || shouldForceConflict(),
   });
   return c.json(result.body, result.status as 201 | 400 | 404 | 409 | 500);
 });
 
 notesRoutes.post("/:id/transitions", async (c) => {
+  if (consumeFailNext("transitions")) {
+    return c.json(
+      {
+        error: "injected_failure",
+        message: "Simulated 500 on transition (fail-next)",
+      },
+      500,
+    );
+  }
   const body = await c.req.json();
   const result = store.transitionNote(c.req.param("id"), body);
   return c.json(result.body, result.status as 200 | 400 | 404 | 409);

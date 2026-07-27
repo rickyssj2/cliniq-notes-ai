@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import type { NoteSummary } from "@soulside/domain";
 import { NoteStatusBadge, useNoteSelectionStore } from "@entities/note";
 import type { NotesSortField } from "@entities/note";
@@ -63,6 +63,7 @@ export function NotesTable({
   onToggleSort,
   emptyMode,
 }: Props) {
+  const location = useLocation();
   const parentRef = useRef<HTMLDivElement>(null);
   const selectedIds = useNoteSelectionStore((s) => s.selectedIds);
   const toggle = useNoteSelectionStore((s) => s.toggle);
@@ -209,7 +210,10 @@ export function NotesTable({
                 </label>
                 <div className="min-w-0">
                   <Link
-                    to={`/notes/${note.id}`}
+                    to={{
+                      pathname: `/notes/${note.id}`,
+                      search: location.search,
+                    }}
                     className="block truncate font-medium text-[var(--foreground)] hover:text-[var(--accent)]"
                   >
                     {note.patient.displayName}
