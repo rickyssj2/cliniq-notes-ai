@@ -4,9 +4,14 @@ import { BrowserRouter } from "react-router";
 import { useSessionStore } from "@entities/user";
 import { queryClient, setActorIdProvider } from "@shared/api";
 import { db } from "@shared/db";
+import { flush } from "@shared/telemetry";
 import { useRealtimeBootstrap } from "@features/realtime-sync";
 import { useOfflineBootstrap } from "@features/offline-queue";
 import { ConflictMergeHost } from "@features/resolve-conflict";
+import {
+  TelemetryDebugPanel,
+  useTelemetryPageViews,
+} from "@features/telemetry-debug";
 
 type AppProvidersProps = {
   children: ReactNode;
@@ -28,6 +33,19 @@ function OfflineBootstrap({ children }: { children: ReactNode }) {
   return children;
 }
 
+function TelemetryBootstrap({ children }: { children: ReactNode }) {
+  useTelemetryPageViews();
+  useEffect(() => {
+    void flush("boot");
+  }, []);
+  return (
+    <>
+      {children}
+      <TelemetryDebugPanel />
+    </>
+  );
+}
+
 function RealtimeBootstrap({ children }: { children: ReactNode }) {
   useRealtimeBootstrap();
   return (
@@ -44,7 +62,9 @@ export function AppProviders({ children }: AppProvidersProps) {
       <BrowserRouter>
         <DexieBootstrap>
           <OfflineBootstrap>
-            <RealtimeBootstrap>{children}</RealtimeBootstrap>
+            <RealtimeBootstrap>
+              <TelemetryBootstrap>{children}</TelemetryBootstrap>
+            </RealtimeBootstrap>
           </OfflineBootstrap>
         </DexieBootstrap>
       </BrowserRouter>

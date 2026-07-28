@@ -11,6 +11,7 @@ import {
   type EditorDraft,
 } from "@entities/note";
 import { ApiError } from "@shared/api";
+import { track } from "@shared/telemetry";
 import {
   enqueueCreateVersion,
   isEffectivelyOnline,
@@ -114,6 +115,11 @@ export function useCoalescedAutosave(opts: {
       });
       // Keep baseVersionId until drain acks — draft looks clean, intent is in Dexie.
       markCleanRef.current(n.id, d.baseVersionId);
+      track(
+        "note.autosave_queued",
+        { noteId: n.id, reason: "offline_or_network" },
+        { important: true },
+      );
       return { ok: true as const };
     };
 
@@ -149,6 +155,10 @@ export function useCoalescedAutosave(opts: {
         },
         updatedAt: new Date().toISOString(),
       });
+      track("note.autosave", {
+        noteId: n.id,
+        revision: result.version.revision,
+      });
       return { ok: true };
     } catch (err) {
       if (isNetworkFailure(err)) {
@@ -171,6 +181,11 @@ export function useCoalescedAutosave(opts: {
           yours: d,
           source: "save",
         });
+        track(
+          "note.conflict_opened",
+          { noteId: n.id, source: "autosave" },
+          { important: true },
+        );
         onConflictRef.current?.(err.body, d);
         return { ok: false, kind: "conflict", message: "Version conflict" };
       }
@@ -180,6 +195,14 @@ export function useCoalescedAutosave(opts: {
           : err instanceof Error
             ? err.message
             : "Save failed";
+      track(
+        "note.autosave_error",
+        {
+          noteId: n.id,
+          status: err instanceof ApiError ? err.status : 0,
+        },
+        { important: true },
+      );
       return { ok: false, kind: "error", message };
     }
   };

@@ -9,6 +9,7 @@ import {
 } from "@entities/note";
 import { ApiError } from "@shared/api";
 import { db } from "@shared/db";
+import { track } from "@shared/telemetry";
 import { isEffectivelyOnline } from "./connectivity-store";
 import {
   listDrainable,
@@ -118,6 +119,10 @@ export async function drainMutationQueue(
 
         await removeMutation(item.id);
         drained += 1;
+        track("offline.mutation_acked", {
+          noteId: item.noteId,
+          type: item.type,
+        });
       } catch (err) {
         if (isNetworkFailure(err)) {
           await db.mutationQueue.update(item.id, {
@@ -149,6 +154,11 @@ export async function drainMutationQueue(
             },
             source: "save",
           });
+          track(
+            "note.conflict_opened",
+            { noteId: item.noteId, source: "offline_drain" },
+            { important: true },
+          );
           await markFailed(item.id, "version_conflict");
           stopped = "conflict";
           break;
@@ -172,6 +182,13 @@ export async function drainMutationQueue(
     }
   } finally {
     draining = false;
+    if (drained > 0 || stopped !== "done") {
+      track(
+        "offline.drain",
+        { drained, stopped },
+        { important: drained > 0 || stopped === "conflict" },
+      );
+    }
   }
 
   return { drained, stopped };

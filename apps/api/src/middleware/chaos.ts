@@ -25,6 +25,7 @@ const failNext = {
   transitions: 0,
   noteGets: 0,
   conflicts: 0,
+  telemetry: 0,
 };
 
 export function getChaosConfig() {
@@ -54,7 +55,7 @@ export function shouldForceConflict() {
 }
 
 export function consumeFailNext(
-  kind: "versions" | "transitions" | "noteGets",
+  kind: "versions" | "transitions" | "noteGets" | "telemetry",
 ): boolean {
   if (failNext[kind] > 0) {
     failNext[kind] -= 1;
@@ -73,7 +74,8 @@ export async function chaosMiddleware(c: Context, next: Next) {
   if (
     !config.enabled ||
     path === "/api/health" ||
-    path.startsWith("/api/dev/")
+    path.startsWith("/api/dev/") ||
+    path.startsWith("/api/telemetry")
   ) {
     return next();
   }

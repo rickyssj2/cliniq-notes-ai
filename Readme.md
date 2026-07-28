@@ -83,6 +83,14 @@ pnpm dev
 3. Run a transition (Start review / Approve) — **Review timeline** shows the status edge
 4. DevTools Offline → queue a transition or save — timeline shows an amber **Optimistic** row until sync
 
+### Try in UI — Phase 10
+
+1. Bottom-right **Telemetry** (dev only) — open panel; counts for buffered / flushed / parked
+2. **Emit sample** — Network → `POST /api/telemetry/batch`; body has `content`/`S` as `[redacted]`, never free text
+3. Edit SOAP / run a transition — events batch (~4s or 20 events); **Flush now** to force send
+4. **Fail ×3 + flush** — after 3 injected 500s the batch parks in IndexedDB (`Parked`); **Flush now** again replays
+5. Hard-refresh mid-buffer (or switch tabs) — `sendBeacon` / keepalive flush; parked rows survive reload
+
 ## Workspace
 
 | Package | Role |
@@ -118,6 +126,7 @@ _In progress. So far:_
 - **Dexie** — mutation write queue (Phase 8); telemetry park (Phase 10)
 - **URL** — list filters/sort/search (preserved across detail Links)
 - **WebSocket** — viewport + detail subscriptions; reconnect cursor replay
+- **Telemetry batcher** — in-memory buffer → `/api/telemetry/batch`; Dexie park after retries
 
 ### State Machine — How the note lifecycle is modelled
 
@@ -157,7 +166,7 @@ App-wide WebSocket (`shared/realtime`): viewport note ids from the virtualizer +
 
 ### Telemetry — Batch, retry, unload, PII redaction
 
-_Pending — Phase 10._
+Only public API: `track(name, props, { important? })` in `shared/telemetry`. Client batches by size (20), timer (4s / 800ms if important), and `visibilitychange` / `pagehide`. After **3** failed sends the batch is **parked in Dexie** (`telemetryPark`) and replayed on later flushes. Unload uses `navigator.sendBeacon` then `fetch({ keepalive: true })`. `redactProps` strips SOAP/`content`/long strings before enqueue; API rejects those keys as defense in depth. Dev **Telemetry** panel shows counts only (no props). Instrumented: page views, autosave, transitions, offline drain, conflicts.
 
 ### Scale — List/detail/history at 100k+ notes
 
@@ -186,9 +195,11 @@ _Pending full pass by Phase 11._ Route-level `ErrorBoundary` (header stays up; T
 | GET | `/api/notes/:id/versions/:versionId` | Full version content (for history diffs) |
 | POST | `/api/notes/:id/versions` | `baseVersionId`, `content`, `clientMutationId` |
 | POST | `/api/notes/:id/transitions` | `{ to, actorId, reason?, mfaVerified?, clientMutationId? }` — validated by `noteMachine` |
+| POST | `/api/telemetry/batch` | Batched client events (`batchId` + redacted props); rejects PII-ish keys |
+| GET | `/api/telemetry/recent` | Last ingested batch summaries (names/counts only) |
 | WS | `/ws` | `subscribe` / `replay` / `presence.join` |
 
-Chaos (default on): 100–800ms latency, ~5% `500`, ~2% forced version conflicts. Disable with `CHAOS=0`. Deterministic demos via `POST /api/dev/chaos` `{ "failNext": { "versions": 1, "noteGets": 1, "conflicts": 1, "transitions": 1 } }` or request header `X-Force-Conflict: 1`. Auto-seed 5000 notes unless `AUTO_SEED=0`.
+Chaos (default on): 100–800ms latency, ~5% `500`, ~2% forced version conflicts. Disable with `CHAOS=0`. Deterministic demos via `POST /api/dev/chaos` `{ "failNext": { "versions": 1, "noteGets": 1, "conflicts": 1, "transitions": 1, "telemetry": 3 } }` or request header `X-Force-Conflict: 1`. Auto-seed 5000 notes unless `AUTO_SEED=0`. Telemetry routes skip random chaos so park demos stay deterministic.
 
 ```bash
 curl -X POST http://localhost:3001/api/dev/seed -H 'content-type: application/json' -d '{"count":5000,"seed":42}'
@@ -221,5 +232,5 @@ Capabilities live in `entities/user/model/permissions.ts`. Mock actors live in `
 - [x] Phase 7 — Real-time
 - [x] Phase 8 — Offline queue
 - [x] Phase 9 — Version history
-- [ ] Phase 10 — Telemetry
+- [x] Phase 10 — Telemetry
 - [ ] Phase 11 — Simulation, tests, README polish

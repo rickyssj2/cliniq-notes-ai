@@ -12,13 +12,14 @@ import {
 } from "@entities/note";
 import { useActor } from "@entities/user";
 import {
-  countPendingForNote,
   enqueueTransition,
   isEffectivelyOnline,
   subscribeQueueStats,
   useEffectiveOnline,
+  countPendingForNote,
 } from "@features/offline-queue";
 import { ApiError } from "@shared/api";
+import { track } from "@shared/telemetry";
 import { Button } from "@shared/ui/button";
 
 const ACTION_LABEL: Record<NoteAction, string> = {
@@ -144,6 +145,11 @@ export function NoteActionBar({ note }: Props) {
           mfaVerified: true,
         });
         applyOptimisticTransition(target.to, action);
+        track(
+          "note.transition_queued",
+          { noteId: note.id, action, to: target.to },
+          { important: true },
+        );
         setQueueHint("Queued offline — will sync when back online");
       };
 
@@ -165,6 +171,11 @@ export function NoteActionBar({ note }: Props) {
         await queryClient.invalidateQueries({
           queryKey: notesQueryKeys.detail(note.id),
         });
+        track(
+          "note.transition",
+          { noteId: note.id, action, to: target.to },
+          { important: true },
+        );
       } catch (err) {
         if (
           (err instanceof ApiError && err.status === 0) ||

@@ -6,6 +6,7 @@ import { chaosMiddleware } from "./middleware/chaos";
 import { attachRealtime } from "./realtime/hub";
 import { devRoutes } from "./routes/dev";
 import { notesRoutes } from "./routes/notes";
+import { telemetryRoutes } from "./routes/telemetry";
 import { store } from "./store/store";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -40,6 +41,7 @@ app.get("/api/health", (c) =>
 
 app.route("/api/notes", notesRoutes);
 app.route("/api/dev", devRoutes);
+app.route("/api/telemetry", telemetryRoutes);
 
 // Default seed so the API is usable without a manual seed call
 if (process.env.AUTO_SEED !== "0") {

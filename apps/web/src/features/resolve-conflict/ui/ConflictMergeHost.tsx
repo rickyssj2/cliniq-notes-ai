@@ -7,6 +7,7 @@ import {
   useEditorDraftStore,
 } from "@entities/note";
 import { useActor } from "@entities/user";
+import { track } from "@shared/telemetry";
 import { ConflictMergeModal } from "./ConflictMergeModal";
 
 /** App-shell host so save + realtime conflicts both surface the same merge UI. */
@@ -47,7 +48,17 @@ export function ConflictMergeHost() {
           queryKey: notesQueryKeys.lists(),
         }),
       ]);
+      track(
+        "note.conflict_resolved",
+        { noteId: payload.noteId, revision: result.version.revision },
+        { important: true },
+      );
     } catch {
+      track(
+        "note.conflict_resolve_failed",
+        { noteId: payload.noteId },
+        { important: true },
+      );
       // Draft stays dirty; user can retry from editor.
     }
   };
