@@ -6,7 +6,7 @@ import {
   ConnectivityBanner,
   useEffectiveOnline,
 } from "@features/offline-queue";
-import { ErrorBoundary } from "@shared/ui/error-boundary";
+import { AppErrorBoundary } from "@shared/ui/error-boundary";
 
 type NavItem = {
   to: string;
@@ -75,9 +75,13 @@ export function AppShell() {
         </div>
       </header>
       <ConnectivityBanner />
-      <ErrorBoundary key={location.pathname} label="page">
+      <AppErrorBoundary
+        label="page"
+        variant="page"
+        resetKeys={[location.pathname]}
+      >
         <Outlet />
-      </ErrorBoundary>
+      </AppErrorBoundary>
     </div>
   );
 }

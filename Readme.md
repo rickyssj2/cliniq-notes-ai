@@ -111,6 +111,13 @@ Chaos defaults on for realism. Deterministic demos: `CHAOS=0` or `POST /api/dev/
 3. `pnpm test:e2e` — Playwright: filter READY → open → Start review → edit → Approve
 4. Force a render error (temporary throw in a page) — header stays; **Try again** / **Back to notes**
 
+### Try in UI — Phase 12
+
+1. Home (dev): **Throw page render error** — header stays; page fallback; Telemetry shows `ui.error` with `source: render`
+2. Home: **Fire unhandled rejection** — console + `ui.error` with `source: unhandledrejection` (boundaries cannot catch this)
+3. Open an `IN_REVIEW` note → **Throw SOAP panel error** — only the SOAP card falls back; history/actions stay up
+4. Same note → **Throw page error** — whole outlet fallback; navigate away or Try again resets via `resetKeys`
+
 ## Workspace
 
 | Package | Role |
@@ -252,13 +259,14 @@ TanStack Virtual + infinite cursor query on `/notes`. Filters/sort/search URL-pe
 | SOAP editor | Per-section `<label>` + `aria-label` on textareas |
 | Actions | Disabled buttons expose machine `reason` via `title` |
 | Conflict modal | `role="dialog"` + labelled title |
-| Route crash | `ErrorBoundary` keeps chrome; alert + recovery actions |
+| Route / panel crash | Nested `react-error-boundary` (`AppErrorBoundary`); header stays |
 | **Gaps** | No full axe CI suite; focus trap in conflict modal is light; live regions for status/presence are minimal |
 
 ### Error handling & auth posture
 
 - API errors surface as actionable UI (rollback, merge, queue hint) — not silent drops
-- Route `ErrorBoundary` prevents blank SPA
+- **Render:** nested `react-error-boundary` (app → page → SOAP/history/conflict panels) with `onError` → `track("ui.error")`
+- **Non-render:** `window` `error` / `unhandledrejection` + TanStack Query/Mutation cache `onError` → same reporter (boundaries cannot catch these)
 - Auth is **simulated** (dev actors + capability matrix); server remains authoritative for transitions
 - Telemetry redacts PII; mutation queue may hold clinical text locally (IndexedDB) — acceptable for take-home offline demo, called out as a production hardening area (encryption-at-rest)
 
@@ -325,3 +333,4 @@ Client-side UX only. Server remains authoritative.
 - [x] Phase 9 — Version history
 - [x] Phase 10 — Telemetry
 - [x] Phase 11 — Simulation, tests, README polish
+- [x] Phase 12 — Error boundaries (`react-error-boundary`) + global/Query reporters

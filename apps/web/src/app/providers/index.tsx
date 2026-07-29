@@ -5,7 +5,9 @@ import { useConflictStore } from "@entities/note";
 import { useSessionStore } from "@entities/user";
 import { queryClient, setActorIdProvider } from "@shared/api";
 import { db } from "@shared/db";
+import { installGlobalErrorHandlers } from "@shared/errors";
 import { flush } from "@shared/telemetry";
+import { AppErrorBoundary } from "@shared/ui/error-boundary";
 import { useRealtimeBootstrap } from "@features/realtime-sync";
 import { useOfflineBootstrap } from "@features/offline-queue";
 // Deep import so the debug panel stays out of the eager telemetry chunk.
@@ -43,6 +45,13 @@ function OfflineBootstrap({ children }: { children: ReactNode }) {
   return children;
 }
 
+function ErrorReportingBootstrap({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    installGlobalErrorHandlers();
+  }, []);
+  return children;
+}
+
 function TelemetryBootstrap({ children }: { children: ReactNode }) {
   useTelemetryPageViews();
   useEffect(() => {
@@ -73,7 +82,9 @@ function ConflictHostGate() {
 
   return (
     <Suspense fallback={null}>
-      <ConflictMergeHost />
+      <AppErrorBoundary label="conflict-host" variant="panel">
+        <ConflictMergeHost />
+      </AppErrorBoundary>
     </Suspense>
   );
 }
@@ -92,13 +103,19 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <DexieBootstrap>
-          <OfflineBootstrap>
-            <RealtimeBootstrap>
-              <TelemetryBootstrap>{children}</TelemetryBootstrap>
-            </RealtimeBootstrap>
-          </OfflineBootstrap>
-        </DexieBootstrap>
+        <ErrorReportingBootstrap>
+          <DexieBootstrap>
+            <OfflineBootstrap>
+              <RealtimeBootstrap>
+                <TelemetryBootstrap>
+                  <AppErrorBoundary label="app" variant="page">
+                    {children}
+                  </AppErrorBoundary>
+                </TelemetryBootstrap>
+              </RealtimeBootstrap>
+            </OfflineBootstrap>
+          </DexieBootstrap>
+        </ErrorReportingBootstrap>
       </BrowserRouter>
     </QueryClientProvider>
   );

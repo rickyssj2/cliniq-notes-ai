@@ -1,4 +1,5 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryCache, QueryClient, MutationCache } from "@tanstack/react-query";
+import { reportError } from "@shared/errors";
 
 function shouldRetryQuery(failureCount: number, error: unknown) {
   if (failureCount >= 1) return false;
@@ -13,6 +14,25 @@ function shouldRetryQuery(failureCount: number, error: unknown) {
  * and the offline write queue (Phase 8). Blind retries would race coalesced saves.
  */
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError(error, query) {
+      const key0 = query.queryKey[0];
+      reportError({
+        source: "query",
+        error,
+        label: typeof key0 === "string" ? key0 : "query",
+      });
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError(error) {
+      reportError({
+        source: "mutation",
+        error,
+        label: "mutation",
+      });
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 30_000,

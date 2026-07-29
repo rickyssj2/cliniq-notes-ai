@@ -27,6 +27,8 @@ import {
 } from "@features/offline-queue";
 import { NoteHistoryPanel, ReviewTimeline } from "@features/note-history";
 import { Button } from "@shared/ui/button";
+import { AppErrorBoundary } from "@shared/ui/error-boundary";
+import { DevThrowRenderButton } from "@shared/ui/dev-throw-render-button";
 
 type Props = {
   note: NoteDetail;
@@ -180,15 +182,24 @@ export function NoteWorkspace({ note }: Props) {
 
       <NoteActionBar note={note} />
 
-      <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
-        <h2 className="mb-4 text-sm font-semibold tracking-wide uppercase">
-          SOAP
-        </h2>
-        <SoapEditor noteId={note.id} readOnly={readOnly || !!conflictOpen} />
-      </section>
+      <AppErrorBoundary label="soap-editor" variant="panel">
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+          <h2 className="mb-4 text-sm font-semibold tracking-wide uppercase">
+            SOAP
+          </h2>
+          <SoapEditor noteId={note.id} readOnly={readOnly || !!conflictOpen} />
+          <div className="mt-3">
+            <DevThrowRenderButton label="Throw SOAP panel error" />
+          </div>
+        </section>
+      </AppErrorBoundary>
 
-      <NoteHistoryPanel note={note} />
-      <ReviewTimeline note={note} />
+      <AppErrorBoundary label="note-history" variant="panel">
+        <NoteHistoryPanel note={note} />
+      </AppErrorBoundary>
+      <AppErrorBoundary label="review-timeline" variant="panel">
+        <ReviewTimeline note={note} />
+      </AppErrorBoundary>
 
       {!readOnly && (
         <section className="space-y-3 rounded-lg border border-dashed border-[var(--border)] bg-[var(--card)] p-4">
@@ -224,6 +235,10 @@ export function NoteWorkspace({ note }: Props) {
             >
               Fail next save (500)
             </Button>
+            <DevThrowRenderButton
+              label="Throw page error"
+              message="Dev: intentional page crash (Phase 12)"
+            />
           </div>
           {demoMsg && (
             <p className="text-xs text-[var(--muted)]">{demoMsg}</p>

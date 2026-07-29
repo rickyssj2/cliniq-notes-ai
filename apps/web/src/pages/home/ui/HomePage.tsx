@@ -1,5 +1,7 @@
 import { Link } from "react-router";
 import { useActor } from "@entities/user";
+import { Button } from "@shared/ui/button";
+import { DevThrowRenderButton } from "@shared/ui/dev-throw-render-button";
 
 export function HomePage() {
   const actor = useActor();
@@ -18,24 +20,50 @@ export function HomePage() {
       </p>
       <ul className="space-y-2 text-sm text-[var(--muted)]">
         <li>
-          <Link className="text-[var(--accent)] underline-offset-4 hover:underline" to="/notes">
+          <Link
+            className="text-[var(--accent)] underline-offset-4 hover:underline"
+            to="/notes"
+          >
             Notes
           </Link>{" "}
           — all roles; filter by status for review work
         </li>
         <li>
-          <Link className="text-[var(--accent)] underline-offset-4 hover:underline" to="/admin">
+          <Link
+            className="text-[var(--accent)] underline-offset-4 hover:underline"
+            to="/admin"
+          >
             Admin
           </Link>{" "}
           — ADMIN only
         </li>
         <li>
-          <Link className="text-[var(--accent)] underline-offset-4 hover:underline" to="/lab">
+          <Link
+            className="text-[var(--accent)] underline-offset-4 hover:underline"
+            to="/lab"
+          >
             API Lab
           </Link>{" "}
           — not available to READONLY_AUDITOR
         </li>
       </ul>
+      {import.meta.env.DEV ? (
+        <div className="flex flex-wrap gap-2 border-t border-[var(--border)] pt-6">
+          <DevThrowRenderButton label="Throw page render error" />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              void Promise.reject(
+                new Error("Dev: intentional unhandled rejection (Phase 12)"),
+              );
+            }}
+          >
+            Fire unhandled rejection
+          </Button>
+        </div>
+      ) : null}
     </main>
   );
 }
