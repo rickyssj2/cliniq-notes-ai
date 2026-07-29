@@ -1,23 +1,33 @@
-import { useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter } from "react-router";
+import { BrowserRouter, useLocation } from "react-router";
+import { useConflictStore } from "@entities/note";
 import { useSessionStore } from "@entities/user";
 import { queryClient, setActorIdProvider } from "@shared/api";
 import { db } from "@shared/db";
 import { flush } from "@shared/telemetry";
 import { useRealtimeBootstrap } from "@features/realtime-sync";
 import { useOfflineBootstrap } from "@features/offline-queue";
-import { ConflictMergeHost } from "@features/resolve-conflict";
-import {
-  TelemetryDebugPanel,
-  useTelemetryPageViews,
-} from "@features/telemetry-debug";
+// Deep import so the debug panel stays out of the eager telemetry chunk.
+import { useTelemetryPageViews } from "@features/telemetry-debug/model/use-page-views";
 
 type AppProvidersProps = {
   children: ReactNode;
 };
 
 setActorIdProvider(() => useSessionStore.getState().actor.id);
+
+const ConflictMergeHost = lazy(() =>
+  import("@features/resolve-conflict/ui/ConflictMergeHost").then((m) => ({
+    default: m.ConflictMergeHost,
+  })),
+);
+
+const TelemetryDebugPanel = lazy(() =>
+  import("@features/telemetry-debug/ui/TelemetryDebugPanel").then((m) => ({
+    default: m.TelemetryDebugPanel,
+  })),
+);
 
 function DexieBootstrap({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -41,8 +51,30 @@ function TelemetryBootstrap({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <TelemetryDebugPanel />
+      {import.meta.env.DEV ? (
+        <Suspense fallback={null}>
+          <TelemetryDebugPanel />
+        </Suspense>
+      ) : null}
     </>
+  );
+}
+
+/**
+ * Defer conflict UI chunk until note detail (or an open conflict).
+ * Keeps /notes list free of merge-modal / word-diff code.
+ */
+function ConflictHostGate() {
+  const location = useLocation();
+  const conflictOpen = useConflictStore((s) => Boolean(s.open));
+  const onNoteDetail = /^\/notes\/[^/]+/.test(location.pathname);
+
+  if (!onNoteDetail && !conflictOpen) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <ConflictMergeHost />
+    </Suspense>
   );
 }
 
@@ -51,7 +83,7 @@ function RealtimeBootstrap({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <ConflictMergeHost />
+      <ConflictHostGate />
     </>
   );
 }
