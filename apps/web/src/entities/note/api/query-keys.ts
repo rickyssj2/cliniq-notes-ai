@@ -24,4 +24,5 @@ export const notesQueryKeys = {
   detail: (id: string) => [...notesQueryKeys.all, "detail", id] as const,
   version: (noteId: string, versionId: string) =>
     [...notesQueryKeys.all, "version", noteId, versionId] as const,
+  devUsers: () => [...notesQueryKeys.all, "dev-users"] as const,
 };

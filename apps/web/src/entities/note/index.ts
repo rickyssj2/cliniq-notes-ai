@@ -42,6 +42,7 @@ export {
 } from "./api/use-notes-query";
 export { useNoteDetailQuery } from "./api/use-note-detail";
 export { useNoteVersionQuery } from "./api/use-note-version";
+export { useDevUsersQuery } from "./api/use-dev-users-query";
 export { useNoteSelectionStore } from "./model/selection-store";
 export {
   useEditorDraftStore,

@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { NOTE_STATUSES, type NoteStatus } from "@soulside/domain";
-import { fetchDevUsers, type DevUser } from "@entities/note";
+import { useDevUsersQuery, type NotesFilterState } from "@entities/note";
 import { useDebouncedValue } from "@shared/lib";
 import { Button } from "@shared/ui/button";
-import type { NotesFilterState } from "@entities/note";
 
 type Props = {
   filters: NotesFilterState;
@@ -14,7 +13,7 @@ type Props = {
 export function NotesFilters({ filters, onChange, onClear }: Props) {
   const [searchDraft, setSearchDraft] = useState(filters.q);
   const debouncedSearch = useDebouncedValue(searchDraft, 300);
-  const [users, setUsers] = useState<DevUser[]>([]);
+  const { data: users = [] } = useDevUsersQuery();
 
   useEffect(() => {
     setSearchDraft(filters.q);
@@ -25,12 +24,6 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
       onChange({ q: debouncedSearch });
     }
   }, [debouncedSearch, filters.q, onChange]);
-
-  useEffect(() => {
-    void fetchDevUsers()
-      .then(setUsers)
-      .catch(() => setUsers([]));
-  }, []);
 
   const reviewers = users.filter((u) => u.role === "REVIEWER");
 
