@@ -35,6 +35,7 @@ export type RealtimeEvent =
       toStatus: NoteStatus;
       actor: UserRef;
       at: string;
+      correlationId?: string;
     }
   | {
       type: "note.version_added";
@@ -48,6 +49,7 @@ export type RealtimeEvent =
         authoredBy: UserRef;
       };
       at: string;
+      correlationId?: string;
     }
   | {
       type: "note.presence";
@@ -55,6 +57,7 @@ export type RealtimeEvent =
       noteId: string;
       viewers: Array<{ id: string; role: Role; displayName: string }>;
       at: string;
+      correlationId?: string;
     };
 
 export type MutationRecord = {

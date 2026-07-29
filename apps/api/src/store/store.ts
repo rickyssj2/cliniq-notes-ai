@@ -464,7 +464,7 @@ export class NoteStore {
     noteId: string,
     body: CreateVersionRequest,
     actorId: string,
-    opts?: { forceConflict?: boolean },
+    opts?: { forceConflict?: boolean; correlationId?: string },
   ): { status: number; body: unknown } {
     const replay = this.replayMutation(body.clientMutationId);
     if (replay) return { status: replay.status, body: replay.body };
@@ -519,6 +519,9 @@ export class NoteStore {
           authoredBy: sneaky.authoredBy,
         },
         at: sneaky.createdAt,
+        ...(opts?.correlationId
+          ? { correlationId: opts.correlationId }
+          : {}),
       });
       head = sneaky;
     }
@@ -583,6 +586,7 @@ export class NoteStore {
         authoredBy: version.authoredBy,
       },
       at: version.createdAt,
+      ...(opts?.correlationId ? { correlationId: opts.correlationId } : {}),
     });
     return { status: 201, body: response };
   }
@@ -606,7 +610,11 @@ export class NoteStore {
     return null;
   }
 
-  transitionNote(noteId: string, body: TransitionBody): { status: number; body: unknown } {
+  transitionNote(
+    noteId: string,
+    body: TransitionBody,
+    opts?: { correlationId?: string },
+  ): { status: number; body: unknown } {
     const replay = this.replayMutation(body.clientMutationId);
     if (replay) return { status: replay.status, body: replay.body };
 
@@ -676,6 +684,7 @@ export class NoteStore {
           authoredBy: branched.authoredBy,
         },
         at: now,
+        ...(opts?.correlationId ? { correlationId: opts.correlationId } : {}),
       });
     }
 
@@ -708,6 +717,7 @@ export class NoteStore {
       actor,
       at: now,
       eventId: reviewEvent.id,
+      ...(opts?.correlationId ? { correlationId: opts.correlationId } : {}),
     });
 
     return { status: 200, body: response };

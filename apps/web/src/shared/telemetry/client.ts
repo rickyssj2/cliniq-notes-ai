@@ -1,5 +1,6 @@
 import { config } from "@shared/config";
 import { db } from "@shared/db";
+import { getCorrelationId } from "@shared/correlation";
 import { redactProps } from "./redact";
 import { getTelemetryStats, patchTelemetryStats } from "./stats";
 import type { TelemetryEvent, TelemetryProps, TrackOptions } from "./types";
@@ -40,10 +41,16 @@ export function track(
   options: TrackOptions = {},
 ) {
   ensureBooted();
+  const correlationId =
+    (typeof props.correlationId === "string" && props.correlationId) ||
+    getCorrelationId();
   const event: TelemetryEvent = {
     id: mintId("tev"),
     name,
-    props: redactProps(props),
+    props: redactProps({
+      ...props,
+      ...(correlationId ? { correlationId } : {}),
+    }),
     important: Boolean(options.important),
     at: new Date().toISOString(),
   };

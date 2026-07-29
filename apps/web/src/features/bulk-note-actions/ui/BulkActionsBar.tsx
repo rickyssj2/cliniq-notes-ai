@@ -7,6 +7,11 @@ import {
   type NoteSummary,
 } from "@entities/note";
 import { GuardedButton, useActor } from "@entities/user";
+import {
+  mintCorrelationId,
+  runWithCorrelationAsync,
+} from "@shared/correlation";
+import { log } from "@shared/logging";
 import { Button } from "@shared/ui/button";
 
 type Props = {
@@ -29,63 +34,67 @@ export function BulkActionsBar({ notesById }: Props) {
   if (selectedIds.size === 0) return null;
 
   const runBulk = async (kind: "start_review" | "regenerate") => {
-    setBusy(true);
-    setMessage(null);
-    let ok = 0;
-    let skipped = 0;
-    let failed = 0;
+    const correlationId = mintCorrelationId("bulk");
+    await runWithCorrelationAsync(correlationId, async () => {
+      setBusy(true);
+      setMessage(null);
+      let ok = 0;
+      let skipped = 0;
+      let failed = 0;
+      log.info("bulk.start", { kind, selected: selected.length });
 
-    for (const note of selected) {
-      const to = kind === "start_review" ? "IN_REVIEW" : "GENERATING";
-      const action = kind === "start_review" ? "start_review" : "regenerate";
-      const gate = machineCan(action, {
-        status: note.status,
-        assignedReviewerId: note.assignedReviewer?.id ?? null,
-        approvedAt: null,
-        now: new Date().toISOString(),
-        actor: { id: actor.id, role: actor.role },
-        mfaVerified: true,
-      });
-
-      if (!gate.ok) {
-        skipped += 1;
-        continue;
-      }
-
-      // Optimistic patch
-      const optimistic: NoteSummary = {
-        ...note,
-        status: to,
-        assignedReviewer:
-          kind === "start_review"
-            ? { id: actor.id, displayName: actor.displayName, role: actor.role }
-            : null,
-        approvedAt: note.approvedAt ?? null,
-        updatedAt: new Date().toISOString(),
-      };
-      patchNote(optimistic);
-
-      try {
-        const result = await transitionNote({
-          noteId: note.id,
-          to,
-          actorId: actor.id,
-          clientMutationId: `bulk_${kind}_${note.id}_${crypto.randomUUID()}`,
+      for (const note of selected) {
+        const to = kind === "start_review" ? "IN_REVIEW" : "GENERATING";
+        const action = kind === "start_review" ? "start_review" : "regenerate";
+        const gate = machineCan(action, {
+          status: note.status,
+          assignedReviewerId: note.assignedReviewer?.id ?? null,
+          approvedAt: null,
+          now: new Date().toISOString(),
+          actor: { id: actor.id, role: actor.role },
           mfaVerified: true,
         });
-        patchNote(result.note);
-        ok += 1;
-      } catch {
-        patchNote(note); // rollback
-        failed += 1;
-      }
-    }
 
-    setMessage(
-      `${kind}: ${ok} ok, ${skipped} skipped (machine), ${failed} failed`,
-    );
-    clear();
-    setBusy(false);
+        if (!gate.ok) {
+          skipped += 1;
+          continue;
+        }
+
+        // Optimistic patch
+        const optimistic: NoteSummary = {
+          ...note,
+          status: to,
+          assignedReviewer:
+            kind === "start_review"
+              ? { id: actor.id, displayName: actor.displayName, role: actor.role }
+              : null,
+          approvedAt: note.approvedAt ?? null,
+          updatedAt: new Date().toISOString(),
+        };
+        patchNote(optimistic);
+
+        try {
+          const result = await transitionNote({
+            noteId: note.id,
+            to,
+            actorId: actor.id,
+            clientMutationId: `bulk_${kind}_${note.id}_${crypto.randomUUID()}`,
+            mfaVerified: true,
+          });
+          patchNote(result.note);
+          ok += 1;
+        } catch {
+          patchNote(note); // rollback
+          failed += 1;
+        }
+      }
+
+      setMessage(
+        `${kind}: ${ok} ok, ${skipped} skipped (machine), ${failed} failed`,
+      );
+      clear();
+      setBusy(false);
+    });
   };
 
   return (

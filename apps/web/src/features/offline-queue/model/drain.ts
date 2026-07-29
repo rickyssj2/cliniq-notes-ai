@@ -9,6 +9,11 @@ import {
 } from "@entities/note";
 import { ApiError } from "@shared/api";
 import { db } from "@shared/db";
+import {
+  mintCorrelationId,
+  runWithCorrelationAsync,
+} from "@shared/correlation";
+import { log } from "@shared/logging";
 import { track } from "@shared/telemetry";
 import { isEffectivelyOnline } from "./connectivity-store";
 import {
@@ -51,144 +56,148 @@ export async function drainMutationQueue(
   draining = true;
   let drained = 0;
   let stopped: "done" | "offline" | "conflict" = "done";
+  const correlationId = mintCorrelationId("drain");
 
   try {
-    const items = await listDrainable();
-    for (const item of items) {
-      if (!isEffectivelyOnline()) {
-        stopped = "offline";
-        break;
-      }
-      if (item.id == null) continue;
-
-      await markInFlight(item.id);
-
-      try {
-        if (item.type === "create_version") {
-          const payload = item.payload as CreateVersionPayload;
-          const result = await saveNoteVersion({
-            noteId: item.noteId,
-            baseVersionId: payload.baseVersionId,
-            content: payload.content,
-            clientMutationId: item.clientMutationId,
-            actorId: payload.actorId,
-          });
-          useEditorDraftStore
-            .getState()
-            .markClean(item.noteId, result.version.id);
-          await queryClient.invalidateQueries({
-            queryKey: notesQueryKeys.detail(item.noteId),
-          });
-          await queryClient.invalidateQueries({
-            queryKey: notesQueryKeys.lists(),
-          });
-        } else {
-          const payload = item.payload as TransitionPayload;
-          const result = await transitionNote({
-            noteId: item.noteId,
-            to: payload.to,
-            actorId: payload.actorId,
-            reason: payload.reason,
-            mfaVerified: payload.mfaVerified,
-            clientMutationId: item.clientMutationId,
-          });
-          queryClient.setQueryData<NoteDetail>(
-            notesQueryKeys.detail(item.noteId),
-            (old) => {
-              if (!old) return old;
-              return {
-                ...old,
-                status: result.note.status,
-                assignedReviewer: result.note.assignedReviewer,
-                approvedAt: result.note.approvedAt,
-                updatedAt: result.note.updatedAt,
-                currentVersion: {
-                  ...old.currentVersion,
-                  ...result.note.currentVersion,
-                },
-              };
-            },
-          );
-          await queryClient.invalidateQueries({
-            queryKey: notesQueryKeys.detail(item.noteId),
-          });
-          await queryClient.invalidateQueries({
-            queryKey: notesQueryKeys.lists(),
-          });
-        }
-
-        await removeMutation(item.id);
-        drained += 1;
-        track("offline.mutation_acked", {
-          noteId: item.noteId,
-          type: item.type,
-        });
-      } catch (err) {
-        if (isNetworkFailure(err)) {
-          await db.mutationQueue.update(item.id, {
-            status: "pending",
-            lastError: err instanceof Error ? err.message : "network",
-          });
-          touchQueueStats();
+    await runWithCorrelationAsync(correlationId, async () => {
+      log.info("offline.drain.start");
+      const items = await listDrainable();
+      for (const item of items) {
+        if (!isEffectivelyOnline()) {
           stopped = "offline";
           break;
         }
+        if (item.id == null) continue;
 
-        if (
-          err instanceof ApiError &&
-          err.status === 409 &&
-          item.type === "create_version" &&
-          isVersionConflict(err.body)
-        ) {
-          const payload = item.payload as CreateVersionPayload;
-          const draft = useEditorDraftStore.getState().drafts[item.noteId];
-          useConflictStore.getState().openConflict({
-            noteId: item.noteId,
-            conflict: err.body,
-            yours: draft ?? {
+        await markInFlight(item.id);
+
+        try {
+          if (item.type === "create_version") {
+            const payload = item.payload as CreateVersionPayload;
+            const result = await saveNoteVersion({
               noteId: item.noteId,
               baseVersionId: payload.baseVersionId,
-              baseSections: { ...payload.content.sections },
-              sections: { ...payload.content.sections },
-              dirty: { S: true, O: true, A: true, P: true },
-            },
-            source: "save",
-          });
-          track(
-            "note.conflict_opened",
-            { noteId: item.noteId, source: "offline_drain" },
-            { important: true },
-          );
-          await markFailed(item.id, "version_conflict");
-          stopped = "conflict";
-          break;
-        }
+              content: payload.content,
+              clientMutationId: item.clientMutationId,
+              actorId: payload.actorId,
+            });
+            useEditorDraftStore
+              .getState()
+              .markClean(item.noteId, result.version.id);
+            await queryClient.invalidateQueries({
+              queryKey: notesQueryKeys.detail(item.noteId),
+            });
+            await queryClient.invalidateQueries({
+              queryKey: notesQueryKeys.lists(),
+            });
+          } else {
+            const payload = item.payload as TransitionPayload;
+            const result = await transitionNote({
+              noteId: item.noteId,
+              to: payload.to,
+              actorId: payload.actorId,
+              reason: payload.reason,
+              mfaVerified: payload.mfaVerified,
+              clientMutationId: item.clientMutationId,
+            });
+            queryClient.setQueryData<NoteDetail>(
+              notesQueryKeys.detail(item.noteId),
+              (old) => {
+                if (!old) return old;
+                return {
+                  ...old,
+                  status: result.note.status,
+                  assignedReviewer: result.note.assignedReviewer,
+                  approvedAt: result.note.approvedAt,
+                  updatedAt: result.note.updatedAt,
+                  currentVersion: {
+                    ...old.currentVersion,
+                    ...result.note.currentVersion,
+                  },
+                };
+              },
+            );
+            await queryClient.invalidateQueries({
+              queryKey: notesQueryKeys.detail(item.noteId),
+            });
+            await queryClient.invalidateQueries({
+              queryKey: notesQueryKeys.lists(),
+            });
+          }
 
-        const message =
-          err instanceof ApiError
-            ? `HTTP ${err.status}`
-            : err instanceof Error
-              ? err.message
-              : "failed";
-        await markFailed(item.id, message);
-        // Roll back optimistic detail/list if the server rejected the replay.
-        await queryClient.invalidateQueries({
-          queryKey: notesQueryKeys.detail(item.noteId),
-        });
-        await queryClient.invalidateQueries({
-          queryKey: notesQueryKeys.lists(),
-        });
+          await removeMutation(item.id);
+          drained += 1;
+          track("offline.mutation_acked", {
+            noteId: item.noteId,
+            type: item.type,
+          });
+        } catch (err) {
+          if (isNetworkFailure(err)) {
+            await db.mutationQueue.update(item.id, {
+              status: "pending",
+              lastError: err instanceof Error ? err.message : "network",
+            });
+            touchQueueStats();
+            stopped = "offline";
+            break;
+          }
+
+          if (
+            err instanceof ApiError &&
+            err.status === 409 &&
+            item.type === "create_version" &&
+            isVersionConflict(err.body)
+          ) {
+            const payload = item.payload as CreateVersionPayload;
+            const draft = useEditorDraftStore.getState().drafts[item.noteId];
+            useConflictStore.getState().openConflict({
+              noteId: item.noteId,
+              conflict: err.body,
+              yours: draft ?? {
+                noteId: item.noteId,
+                baseVersionId: payload.baseVersionId,
+                baseSections: { ...payload.content.sections },
+                sections: { ...payload.content.sections },
+                dirty: { S: true, O: true, A: true, P: true },
+              },
+              source: "save",
+            });
+            track(
+              "note.conflict_opened",
+              { noteId: item.noteId, source: "offline_drain" },
+              { important: true },
+            );
+            await markFailed(item.id, "version_conflict");
+            stopped = "conflict";
+            break;
+          }
+
+          const message =
+            err instanceof ApiError
+              ? `HTTP ${err.status}`
+              : err instanceof Error
+                ? err.message
+                : "failed";
+          await markFailed(item.id, message);
+          await queryClient.invalidateQueries({
+            queryKey: notesQueryKeys.detail(item.noteId),
+          });
+          await queryClient.invalidateQueries({
+            queryKey: notesQueryKeys.lists(),
+          });
+        }
       }
-    }
+
+      if (drained > 0 || stopped !== "done") {
+        track(
+          "offline.drain",
+          { drained, stopped },
+          { important: drained > 0 || stopped === "conflict" },
+        );
+      }
+    });
   } finally {
     draining = false;
-    if (drained > 0 || stopped !== "done") {
-      track(
-        "offline.drain",
-        { drained, stopped },
-        { important: drained > 0 || stopped === "conflict" },
-      );
-    }
   }
 
   return { drained, stopped };

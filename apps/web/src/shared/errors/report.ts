@@ -1,4 +1,5 @@
 import { track } from "@shared/telemetry";
+import { getCorrelationId } from "@shared/correlation";
 import { ApiError } from "@shared/api/http";
 
 export type ErrorSource =
@@ -34,6 +35,7 @@ function errorMessage(error: unknown): string {
 export function reportError(input: ReportInput) {
   const { source, error, label, componentStack } = input;
   const status = error instanceof ApiError ? error.status : undefined;
+  const correlationId = getCorrelationId();
 
   console.error(`[error:${source}]`, label ?? "", error, componentStack ?? "");
 
@@ -46,6 +48,7 @@ export function reportError(input: ReportInput) {
       message: errorMessage(error),
       status: status ?? null,
       hasComponentStack: Boolean(componentStack),
+      ...(correlationId ? { correlationId } : {}),
     },
     { important: true },
   );

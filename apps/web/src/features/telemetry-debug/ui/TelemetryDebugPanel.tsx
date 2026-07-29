@@ -5,6 +5,7 @@ import {
   subscribeTelemetryStats,
   track,
 } from "@shared/telemetry";
+import { getLastCorrelationId } from "@shared/correlation";
 import { apiFetch } from "@shared/api";
 import { Button } from "@shared/ui/button";
 
@@ -19,10 +20,12 @@ export function TelemetryDebugPanel() {
     getTelemetryStats,
   );
   const [serverBatches, setServerBatches] = useState<number | null>(null);
+  const [lastCorr, setLastCorr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     const id = window.setInterval(() => {
+      setLastCorr(getLastCorrelationId());
       void apiFetch<{ totalBatches: number }>("/telemetry/recent")
         .then(({ data }) => setServerBatches(data.totalBatches))
         .catch(() => setServerBatches(null));
@@ -52,6 +55,10 @@ export function TelemetryDebugPanel() {
             <dd className="font-mono">{stats.failedAttempts}</dd>
             <dt className="text-[var(--muted)]">Server batches</dt>
             <dd className="font-mono">{serverBatches ?? "—"}</dd>
+            <dt className="text-[var(--muted)]">Last corr</dt>
+            <dd className="truncate font-mono" title={lastCorr ?? undefined}>
+              {lastCorr ?? "—"}
+            </dd>
           </dl>
           {stats.lastBatchId && (
             <p className="truncate text-[10px] text-[var(--muted)]">

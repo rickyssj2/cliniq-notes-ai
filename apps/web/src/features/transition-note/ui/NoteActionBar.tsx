@@ -19,6 +19,11 @@ import {
   countPendingForNote,
 } from "@features/offline-queue";
 import { ApiError } from "@shared/api";
+import {
+  mintCorrelationId,
+  runWithCorrelationAsync,
+} from "@shared/correlation";
+import { log } from "@shared/logging";
 import { track } from "@shared/telemetry";
 import { Button } from "@shared/ui/button";
 
@@ -133,60 +138,69 @@ export function NoteActionBar({ note }: Props) {
     if (!target?.enabled) return;
 
     const clientMutationId = `ui_${action}_${note.id}_${crypto.randomUUID()}`;
+    const correlationId = mintCorrelationId("transition");
     setBusy(action);
     try {
-      const queue = async () => {
-        await enqueueTransition({
+      await runWithCorrelationAsync(correlationId, async () => {
+        log.info("transition.start", {
           noteId: note.id,
-          clientMutationId,
+          action,
           to: target.to,
-          actorId: actor.id,
-          reason,
-          mfaVerified: true,
         });
-        applyOptimisticTransition(target.to, action);
-        track(
-          "note.transition_queued",
-          { noteId: note.id, action, to: target.to },
-          { important: true },
-        );
-        setQueueHint("Queued offline — will sync when back online");
-      };
 
-      if (!isEffectivelyOnline()) {
-        await queue();
-        return;
-      }
+        const queue = async () => {
+          await enqueueTransition({
+            noteId: note.id,
+            clientMutationId,
+            to: target.to,
+            actorId: actor.id,
+            reason,
+            mfaVerified: true,
+          });
+          applyOptimisticTransition(target.to, action);
+          track(
+            "note.transition_queued",
+            { noteId: note.id, action, to: target.to },
+            { important: true },
+          );
+          setQueueHint("Queued offline — will sync when back online");
+        };
 
-      try {
-        const result = await transitionNote({
-          noteId: note.id,
-          to: target.to,
-          actorId: actor.id,
-          reason,
-          mfaVerified: true,
-          clientMutationId,
-        });
-        patchList(result.note);
-        await queryClient.invalidateQueries({
-          queryKey: notesQueryKeys.detail(note.id),
-        });
-        track(
-          "note.transition",
-          { noteId: note.id, action, to: target.to },
-          { important: true },
-        );
-      } catch (err) {
-        if (
-          (err instanceof ApiError && err.status === 0) ||
-          err instanceof TypeError ||
-          !isEffectivelyOnline()
-        ) {
+        if (!isEffectivelyOnline()) {
           await queue();
           return;
         }
-        throw err;
-      }
+
+        try {
+          const result = await transitionNote({
+            noteId: note.id,
+            to: target.to,
+            actorId: actor.id,
+            reason,
+            mfaVerified: true,
+            clientMutationId,
+          });
+          patchList(result.note);
+          await queryClient.invalidateQueries({
+            queryKey: notesQueryKeys.detail(note.id),
+          });
+          track(
+            "note.transition",
+            { noteId: note.id, action, to: target.to },
+            { important: true },
+          );
+        } catch (err) {
+          if (
+            (err instanceof ApiError && err.status === 0) ||
+            err instanceof TypeError ||
+            !isEffectivelyOnline()
+          ) {
+            await queue();
+            return;
+          }
+          throw err;
+        }
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Transition failed");
     } finally {

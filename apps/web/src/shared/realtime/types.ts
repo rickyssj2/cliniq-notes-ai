@@ -9,6 +9,8 @@ export type RealtimeEvent =
       toStatus: NoteStatus;
       actor: UserRef;
       at: string;
+      /** Echo of client X-Correlation-Id when the mutation carried one. */
+      correlationId?: string;
     }
   | {
       type: "note.version_added";
@@ -22,6 +24,7 @@ export type RealtimeEvent =
         authoredBy: UserRef;
       };
       at: string;
+      correlationId?: string;
     }
   | {
       type: "note.presence";
@@ -29,6 +32,7 @@ export type RealtimeEvent =
       noteId: string;
       viewers: Array<{ id: string; role: Role; displayName: string }>;
       at: string;
+      correlationId?: string;
     };
 
 export type RealtimeControlMessage =

@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { NoteDetail, NoteSummary, VersionConflictError } from "@soulside/domain";
 import { applyServerStatusChange } from "@soulside/domain";
 import type { RealtimeEvent } from "@shared/realtime";
+import { log } from "@shared/logging";
 import { notesQueryKeys } from "../api/query-keys";
 import {
   isDraftDirty,
@@ -49,6 +50,15 @@ export function applyRealtimeEvent(
   event: RealtimeEvent,
 ): boolean {
   if (!rememberEventId(event.eventId)) return false;
+
+  if (event.correlationId) {
+    log.info("realtime.echo", {
+      type: event.type,
+      noteId: event.noteId,
+      eventId: event.eventId,
+      correlationId: event.correlationId,
+    });
+  }
 
   switch (event.type) {
     case "note.presence": {

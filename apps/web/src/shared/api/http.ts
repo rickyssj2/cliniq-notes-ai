@@ -1,4 +1,8 @@
 import { config } from "@shared/config";
+import {
+  getCorrelationId,
+  mintCorrelationId,
+} from "@shared/correlation";
 
 export class ApiError extends Error {
   status: number;
@@ -27,25 +31,37 @@ export function setActorIdProvider(provider: ActorIdProvider) {
   actorIdProvider = provider;
 }
 
+export type ApiFetchInit = RequestInit & {
+  /** Override ambient correlation; defaults to context or a fresh id. */
+  correlationId?: string;
+};
+
 export async function apiFetch<T>(
   path: string,
-  init?: RequestInit,
-): Promise<{ status: number; data: T }> {
+  init?: ApiFetchInit,
+): Promise<{ status: number; data: T; correlationId: string }> {
   const actorId = actorIdProvider();
+  const correlationId =
+    init?.correlationId ?? getCorrelationId() ?? mintCorrelationId("http");
+
+  const { correlationId: _drop, headers: initHeaders, ...rest } = init ?? {};
+
   let res: Response;
   try {
     res = await fetch(`${config.apiBaseUrl}${path}`, {
-      ...init,
+      ...rest,
       headers: {
         "Content-Type": "application/json",
+        "X-Correlation-Id": correlationId,
         ...(actorId ? { "X-Actor-Id": actorId } : {}),
-        ...(init?.headers ?? {}),
+        ...(initHeaders ?? {}),
       },
     });
   } catch (err) {
     throw new ApiError(0, {
       error: "network_error",
       message: err instanceof Error ? err.message : "Failed to fetch",
+      correlationId,
     });
   }
 
@@ -56,5 +72,5 @@ export async function apiFetch<T>(
     throw new ApiError(res.status, data);
   }
 
-  return { status: res.status, data };
+  return { status: res.status, data, correlationId };
 }

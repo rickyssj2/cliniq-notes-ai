@@ -22,7 +22,14 @@ app.use(
       "http://localhost:5175",
       "http://localhost:5176",
     ],
-    allowHeaders: ["Content-Type", "Authorization", "X-Actor-Id"],
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Actor-Id",
+      "X-Correlation-Id",
+      "X-Force-Conflict",
+    ],
+    exposeHeaders: ["X-Correlation-Id"],
     allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
   }),
 );

@@ -118,6 +118,14 @@ Chaos defaults on for realism. Deterministic demos: `CHAOS=0` or `POST /api/dev/
 3. Open an `IN_REVIEW` note → **Throw SOAP panel error** — only the SOAP card falls back; history/actions stay up
 4. Same note → **Throw page error** — whole outlet fallback; navigate away or Try again resets via `resetKeys`
 
+### Try in UI — Phase 13
+
+1. Open an `IN_REVIEW` note and edit SOAP — DevTools Network → version POST shows request header `X-Correlation-Id` (e.g. `save_…`); response echoes it
+2. Telemetry panel → **Last corr** updates; after flush, batch event props include the same `correlationId`
+3. Transition (Start review / Approve) — Network + Telemetry share a `transition_…` id; console `[log:info]` lines carry it
+4. With WS connected, save again — console `realtime.echo` logs the same id on the inbound event
+5. Navigate Home ↔ notes — each route change mints a `page_…` id on `page.view`
+
 ## Workspace
 
 | Package | Role |
@@ -136,7 +144,7 @@ apps/web/src/
   widgets/     # composite UI blocks
   features/    # user-facing capabilities
   entities/    # business entities
-  shared/      # ui, api, db (Dexie), config, lib, telemetry, realtime
+  shared/      # ui, api, db, config, lib, telemetry, realtime, correlation, logging
 ```
 
 Import rule: layers only depend downward (`app` → `pages` → `widgets` → `features` → `entities` → `shared`).
@@ -232,6 +240,10 @@ App-wide WebSocket (`shared/realtime`): viewport note ids from the virtualizer +
 ### Telemetry — Batch, retry, unload, PII redaction
 
 Only public API: `track(name, props, { important? })` in `shared/telemetry`. Client batches by size (20), timer (4s / 800ms if important), and `visibilitychange` / `pagehide`. After **3** failed sends the batch is **parked in Dexie** (`telemetryPark`) and replayed on later flushes. Unload uses `navigator.sendBeacon` then `fetch({ keepalive: true })`. `redactProps` strips SOAP/`content`/long strings before enqueue; API rejects those keys as defense in depth. Dev **Telemetry** panel shows counts only (no props).
+
+### Correlation IDs — UI → HTTP → telemetry → WS
+
+`shared/correlation` holds a browser-scoped ambient id (`runWithCorrelation` / `Async`). Saves, transitions, drain, merge, and page views mint a prefix (`save_`, `transition_`, …) and wrap the action. `apiFetch` always sends `X-Correlation-Id` (ambient or fresh `http_…`); the API echoes it on the response and attaches it to outbound WS events for that mutation. `track()` and `reportError` merge ambient `correlationId` into props; `shared/logging` prints the same field in DEV. Not AsyncLocalStorage — nested async after the wrapper returns can lose ambient context, which is why call sites wrap the full await chain.
 
 ### Scale — List/detail/history at 100k+ notes
 
@@ -334,3 +346,4 @@ Client-side UX only. Server remains authoritative.
 - [x] Phase 10 — Telemetry
 - [x] Phase 11 — Simulation, tests, README polish
 - [x] Phase 12 — Error boundaries (`react-error-boundary`) + global/Query reporters
+- [x] Phase 13 — Correlation IDs (HTTP / telemetry / WS) + tiny `shared/logging`

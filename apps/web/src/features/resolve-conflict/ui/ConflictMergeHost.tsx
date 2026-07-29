@@ -7,6 +7,11 @@ import {
   useEditorDraftStore,
 } from "@entities/note";
 import { useActor } from "@entities/user";
+import {
+  mintCorrelationId,
+  runWithCorrelationAsync,
+} from "@shared/correlation";
+import { log } from "@shared/logging";
 import { track } from "@shared/telemetry";
 import { ConflictMergeModal } from "./ConflictMergeModal";
 
@@ -25,42 +30,46 @@ export function ConflictMergeHost() {
     sections: Record<SoapSection, string>,
     baseVersionId: string,
   ) => {
-    applyResolution({
-      noteId: payload.noteId,
-      baseVersionId,
-      sections,
-    });
-    closeConflict();
-    try {
-      const result = await saveNoteVersion({
+    const correlationId = mintCorrelationId("merge");
+    await runWithCorrelationAsync(correlationId, async () => {
+      log.info("conflict.resolve.start", { noteId: payload.noteId });
+      applyResolution({
         noteId: payload.noteId,
         baseVersionId,
-        content: { sections },
-        clientMutationId: `merge_${payload.noteId}_${crypto.randomUUID()}`,
-        actorId: actor.id,
+        sections,
       });
-      markClean(payload.noteId, result.version.id);
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: notesQueryKeys.detail(payload.noteId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: notesQueryKeys.lists(),
-        }),
-      ]);
-      track(
-        "note.conflict_resolved",
-        { noteId: payload.noteId, revision: result.version.revision },
-        { important: true },
-      );
-    } catch {
-      track(
-        "note.conflict_resolve_failed",
-        { noteId: payload.noteId },
-        { important: true },
-      );
-      // Draft stays dirty; user can retry from editor.
-    }
+      closeConflict();
+      try {
+        const result = await saveNoteVersion({
+          noteId: payload.noteId,
+          baseVersionId,
+          content: { sections },
+          clientMutationId: `merge_${payload.noteId}_${crypto.randomUUID()}`,
+          actorId: actor.id,
+        });
+        markClean(payload.noteId, result.version.id);
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: notesQueryKeys.detail(payload.noteId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: notesQueryKeys.lists(),
+          }),
+        ]);
+        track(
+          "note.conflict_resolved",
+          { noteId: payload.noteId, revision: result.version.revision },
+          { important: true },
+        );
+      } catch {
+        track(
+          "note.conflict_resolve_failed",
+          { noteId: payload.noteId },
+          { important: true },
+        );
+        // Draft stays dirty; user can retry from editor.
+      }
+    });
   };
 
   return (

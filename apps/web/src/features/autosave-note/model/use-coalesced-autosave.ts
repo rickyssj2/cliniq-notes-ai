@@ -11,6 +11,11 @@ import {
   type EditorDraft,
 } from "@entities/note";
 import { ApiError } from "@shared/api";
+import {
+  mintCorrelationId,
+  runWithCorrelationAsync,
+} from "@shared/correlation";
+import { log } from "@shared/logging";
 import { track } from "@shared/telemetry";
 import {
   enqueueCreateVersion,
@@ -82,129 +87,137 @@ export function useCoalescedAutosave(opts: {
   }));
 
   saveImplRef.current = async (clientMutationId) => {
-    const n = noteRef.current;
-    const d = useEditorDraftStore.getState().drafts[n.id];
-    if (!d || !isDraftDirty(d)) return { ok: true };
+    const correlationId = mintCorrelationId("save");
+    return runWithCorrelationAsync(correlationId, async () => {
+      const n = noteRef.current;
+      const d = useEditorDraftStore.getState().drafts[n.id];
+      if (!d || !isDraftDirty(d)) return { ok: true as const };
 
-    const qc = queryClientRef.current;
-    const detailKey = notesQueryKeys.detail(n.id);
-    const snapshot = qc.getQueryData<NoteDetail>(detailKey);
-
-    if (snapshot) {
-      qc.setQueryData<NoteDetail>(detailKey, {
-        ...snapshot,
-        currentVersion: {
-          ...snapshot.currentVersion,
-          content: { sections: { ...d.sections } },
-        },
-        updatedAt: new Date().toISOString(),
-      });
-    }
-    patchListRef.current({
-      ...n,
-      updatedAt: new Date().toISOString(),
-    });
-
-    const queueLocally = async () => {
-      await enqueueCreateVersion({
+      log.info("autosave.start", {
         noteId: n.id,
         clientMutationId,
-        baseVersionId: d.baseVersionId,
-        content: { sections: d.sections },
-        actorId: actorIdRef.current,
       });
-      // Keep baseVersionId until drain acks — draft looks clean, intent is in Dexie.
-      markCleanRef.current(n.id, d.baseVersionId);
-      track(
-        "note.autosave_queued",
-        { noteId: n.id, reason: "offline_or_network" },
-        { important: true },
-      );
-      return { ok: true as const };
-    };
 
-    if (!isEffectivelyOnline()) {
-      return queueLocally();
-    }
+      const qc = queryClientRef.current;
+      const detailKey = notesQueryKeys.detail(n.id);
+      const snapshot = qc.getQueryData<NoteDetail>(detailKey);
 
-    try {
-      const headers: Record<string, string> = {};
-      if (forceRef.current) {
-        headers["X-Force-Conflict"] = "1";
-        forceRef.current = false;
-        setForceConflictNext(false);
+      if (snapshot) {
+        qc.setQueryData<NoteDetail>(detailKey, {
+          ...snapshot,
+          currentVersion: {
+            ...snapshot.currentVersion,
+            content: { sections: { ...d.sections } },
+          },
+          updatedAt: new Date().toISOString(),
+        });
       }
-
-      const result = await saveNoteVersion({
-        noteId: n.id,
-        baseVersionId: d.baseVersionId,
-        content: { sections: d.sections },
-        clientMutationId,
-        actorId: actorIdRef.current,
-        headers,
-      });
-
-      markCleanRef.current(n.id, result.version.id);
-      await qc.invalidateQueries({ queryKey: detailKey });
       patchListRef.current({
         ...n,
-        currentVersion: {
-          id: result.version.id,
-          revision: result.version.revision,
-          parentVersionId: result.version.parentVersionId,
-        },
         updatedAt: new Date().toISOString(),
       });
-      track("note.autosave", {
-        noteId: n.id,
-        revision: result.version.revision,
-      });
-      return { ok: true };
-    } catch (err) {
-      if (isNetworkFailure(err)) {
+
+      const queueLocally = async () => {
+        await enqueueCreateVersion({
+          noteId: n.id,
+          clientMutationId,
+          baseVersionId: d.baseVersionId,
+          content: { sections: d.sections },
+          actorId: actorIdRef.current,
+        });
+        // Keep baseVersionId until drain acks — draft looks clean, intent is in Dexie.
+        markCleanRef.current(n.id, d.baseVersionId);
+        track(
+          "note.autosave_queued",
+          { noteId: n.id, reason: "offline_or_network" },
+          { important: true },
+        );
+        return { ok: true as const };
+      };
+
+      if (!isEffectivelyOnline()) {
         return queueLocally();
       }
 
-      if (snapshot) {
-        qc.setQueryData(detailKey, snapshot);
-      }
-      await qc.invalidateQueries({ queryKey: notesQueryKeys.lists() });
+      try {
+        const headers: Record<string, string> = {};
+        if (forceRef.current) {
+          headers["X-Force-Conflict"] = "1";
+          forceRef.current = false;
+          setForceConflictNext(false);
+        }
 
-      if (
-        err instanceof ApiError &&
-        err.status === 409 &&
-        isVersionConflict(err.body)
-      ) {
-        useConflictStore.getState().openConflict({
+        const result = await saveNoteVersion({
           noteId: n.id,
-          conflict: err.body,
-          yours: d,
-          source: "save",
+          baseVersionId: d.baseVersionId,
+          content: { sections: d.sections },
+          clientMutationId,
+          actorId: actorIdRef.current,
+          headers,
         });
+
+        markCleanRef.current(n.id, result.version.id);
+        await qc.invalidateQueries({ queryKey: detailKey });
+        patchListRef.current({
+          ...n,
+          currentVersion: {
+            id: result.version.id,
+            revision: result.version.revision,
+            parentVersionId: result.version.parentVersionId,
+          },
+          updatedAt: new Date().toISOString(),
+        });
+        track("note.autosave", {
+          noteId: n.id,
+          revision: result.version.revision,
+        });
+        return { ok: true as const };
+      } catch (err) {
+        if (isNetworkFailure(err)) {
+          return queueLocally();
+        }
+
+        if (snapshot) {
+          qc.setQueryData(detailKey, snapshot);
+        }
+        await qc.invalidateQueries({ queryKey: notesQueryKeys.lists() });
+
+        if (
+          err instanceof ApiError &&
+          err.status === 409 &&
+          isVersionConflict(err.body)
+        ) {
+          useConflictStore.getState().openConflict({
+            noteId: n.id,
+            conflict: err.body,
+            yours: d,
+            source: "save",
+          });
+          track(
+            "note.conflict_opened",
+            { noteId: n.id, source: "autosave" },
+            { important: true },
+          );
+          onConflictRef.current?.(err.body, d);
+          return { ok: false as const, kind: "conflict" as const, message: "Version conflict" };
+        }
+        const message =
+          err instanceof ApiError
+            ? `Save failed (${err.status}): ${JSON.stringify(err.body)}`
+            : err instanceof Error
+              ? err.message
+              : "Save failed";
         track(
-          "note.conflict_opened",
-          { noteId: n.id, source: "autosave" },
+          "note.autosave_error",
+          {
+            noteId: n.id,
+            status: err instanceof ApiError ? err.status : 0,
+          },
           { important: true },
         );
-        onConflictRef.current?.(err.body, d);
-        return { ok: false, kind: "conflict", message: "Version conflict" };
+        return { ok: false as const, kind: "error" as const, message };
       }
-      const message =
-        err instanceof ApiError
-          ? `Save failed (${err.status}): ${JSON.stringify(err.body)}`
-          : err instanceof Error
-            ? err.message
-            : "Save failed";
-      track(
-        "note.autosave_error",
-        {
-          noteId: n.id,
-          status: err instanceof ApiError ? err.status : 0,
-        },
-        { important: true },
-      );
-      return { ok: false, kind: "error", message };
-    }
+    });
   };
 
   const saver = useMemo(

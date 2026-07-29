@@ -71,10 +71,13 @@ notesRoutes.post("/:id/versions", async (c) => {
     (typeof body.actorId === "string" && body.actorId) ||
     c.req.header("x-actor-id") ||
     "usr_clin_001";
+  const correlationId = c.req.header("x-correlation-id") ?? undefined;
+  if (correlationId) c.header("X-Correlation-Id", correlationId);
 
   const headerForce = c.req.header("x-force-conflict") === "1";
   const result = store.createVersion(c.req.param("id"), body, actorId, {
     forceConflict: headerForce || shouldForceConflict(),
+    correlationId,
   });
   return c.json(result.body, result.status as 201 | 400 | 404 | 409 | 500);
 });
@@ -90,6 +93,10 @@ notesRoutes.post("/:id/transitions", async (c) => {
     );
   }
   const body = await c.req.json();
-  const result = store.transitionNote(c.req.param("id"), body);
+  const correlationId = c.req.header("x-correlation-id") ?? undefined;
+  if (correlationId) c.header("X-Correlation-Id", correlationId);
+  const result = store.transitionNote(c.req.param("id"), body, {
+    correlationId,
+  });
   return c.json(result.body, result.status as 200 | 400 | 404 | 409);
 });
