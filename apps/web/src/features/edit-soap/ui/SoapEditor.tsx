@@ -46,6 +46,7 @@ export function SoapEditor({ noteId, readOnly }: Props) {
               readOnly={readOnly}
               disabled={readOnly}
               rows={5}
+              aria-label={label}
               onChange={(e) => setSection(noteId, key, e.target.value)}
               className={cn(
                 "w-full resize-y rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm leading-relaxed",

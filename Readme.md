@@ -1,6 +1,6 @@
 # Soulside AI — Clinical Notes Workflow
 
-Frontend take-home: AI-assisted clinical notes review SPA.
+Frontend take-home: AI-assisted clinical notes review SPA. Architecture over polish — domain state machine, optimistic concurrency, offline queue, real-time reconcile, virtualized scale, telemetry with PII redaction.
 
 ## Quick start
 
@@ -10,8 +10,21 @@ pnpm dev
 ```
 
 - Web: http://localhost:5173
-- **API Lab (Phase 2 UI):** http://localhost:5173/lab
-- API health: http://localhost:3001/api/health (also proxied at `/api/health`)
+- **API Lab:** http://localhost:5173/lab
+- API health: http://localhost:3001/api/health (proxied at `/api/health`)
+
+### Scripts
+
+| Command | Purpose |
+|---|---|
+| `pnpm dev` | Web + API |
+| `pnpm test` | Unit/integration (domain + web Vitest) |
+| `pnpm simulate` | Multi-reviewer API simulation (+ extra scenarios) |
+| `pnpm simulate:scenarios` | Extra scenarios only |
+| `pnpm test:e2e` | Playwright smoke (boots API+web if needed) |
+| `pnpm typecheck` | All packages |
+
+Chaos defaults on for realism. Deterministic demos: `CHAOS=0` or `POST /api/dev/chaos`.
 
 ### Try in UI — Phase 2
 
@@ -38,7 +51,7 @@ pnpm dev
 4. Click column headers (Status / Updated / Created) to sort
 5. Select rows across scroll; use **Start review** / **Request regeneration** on the sticky bulk bar (as REVIEWER/ADMIN). Watch optimistic status chips update
 6. Clear filters vs search with no matches — empty workspace vs **no results** messaging differ
-7. Click a patient name → detail stub (Phase 5)
+7. Click a patient name → detail
 
 ### Try in UI — Phase 5
 
@@ -91,6 +104,13 @@ pnpm dev
 4. **Fail ×3 + flush** — after 3 injected 500s the batch parks in IndexedDB (`Parked`); **Flush now** again replays
 5. Hard-refresh mid-buffer (or switch tabs) — `sendBeacon` / keepalive flush; parked rows survive reload
 
+### Try in UI — Phase 11
+
+1. With API up: `pnpm simulate` — three reviewers finish ~60 notes; scenarios assert 409 merge, reject/resubmit, WS ordering, burst fetches
+2. `pnpm test` — machine + autosave coalesce + queue coalesce + realtime dedupe/cap + redact
+3. `pnpm test:e2e` — Playwright: filter READY → open → Start review → edit → Approve
+4. Force a render error (temporary throw in a page) — header stays; **Try again** / **Back to notes**
+
 ## Workspace
 
 | Package | Role |
@@ -98,6 +118,7 @@ pnpm dev
 | `apps/web` | Vite + React SPA (Feature-Sliced Design) |
 | `apps/api` | Hono mock REST + WebSocket + deterministic seed |
 | `packages/domain` | Shared types + pure `noteMachine` |
+| `simulate_workflow.ts` | Assignment sim + extra API scenarios |
 
 ### Web FSD layout
 
@@ -108,25 +129,62 @@ apps/web/src/
   widgets/     # composite UI blocks
   features/    # user-facing capabilities
   entities/    # business entities
-  shared/      # ui, api, db (Dexie), config, lib
+  shared/      # ui, api, db (Dexie), config, lib, telemetry, realtime
 ```
 
 Import rule: layers only depend downward (`app` → `pages` → `widgets` → `features` → `entities` → `shared`).
 
-## Design decisions
+## Architecture overview
 
-Filled in as phases land. Required by the assignment:
+```mermaid
+flowchart TB
+  subgraph ui [Web FSD]
+    Pages[pages / widgets]
+    Feat[features]
+    Ent[entities/note]
+    Shared[shared api db telemetry realtime]
+  end
+  subgraph domain [packages/domain]
+    SM[noteMachine]
+  end
+  subgraph clientState [Client state]
+    TQ[TanStack Query]
+    ZS[Zustand]
+    DX[Dexie queues]
+  end
+  subgraph api [Hono :3001]
+    REST[REST /api]
+    WS[WebSocket /ws]
+    Store[In-memory store]
+  end
+  Pages --> Feat --> Ent
+  Feat --> Shared
+  Ent --> SM
+  Ent --> TQ
+  Feat --> ZS
+  Feat --> DX
+  TQ --> REST
+  Shared --> WS
+  REST --> Store
+  WS --> Store
+  REST --> SM
+```
+
+**Effect flow (save):** draft (Zustand) → coalesced autosave → optimistic Query patch → POST version → ack / 409 merge / offline Dexie enqueue → drain on reconnect → WS `version_added` reconciled into Query (deduped by `eventId`).
+
+## Design decisions
 
 ### State Topology — Where state lives
 
-_In progress. So far:_
 - **Pure domain (`packages/domain`)** — lifecycle invariants via `noteMachine` (no React, no I/O)
 - **Zustand** — session/actor; note selection; SOAP editor drafts; presence; conflict modal; connectivity
-- **TanStack Query** — notes list/detail; optimistic patches; live WS reconciliation; 35m `gcTime` for offline reads
+- **TanStack Query** — notes list/detail/versions; optimistic patches; live WS reconciliation; 35m `gcTime` for offline reads; `dev-users` with `staleTime: Infinity`
 - **Dexie** — mutation write queue (Phase 8); telemetry park (Phase 10)
 - **URL** — list filters/sort/search (preserved across detail Links)
 - **WebSocket** — viewport + detail subscriptions; reconnect cursor replay
 - **Telemetry batcher** — in-memory buffer → `/api/telemetry/batch`; Dexie park after retries
+
+Server entities stay out of Zustand. Dexie is not a notes cache — only durable *client intent*.
 
 ### State Machine — How the note lifecycle is modelled
 
@@ -135,7 +193,7 @@ Implemented as a pure module in [`packages/domain/src/note-machine`](packages/do
 - **Transition table** (`TRANSITIONS`) is the single source of truth for legal edges and guards
 - **`can` / `transition`** validate user intent before any API call
 - **`applyServerStatusChange`** runs real-time / authoritative status pushes through the same table (`source: "server"` trusts MFA already happened)
-- **`getAvailableActions`** drives the action bar — disabled buttons carry human-readable `reason` strings (e.g. "You are not the assigned reviewer")
+- **`getAvailableActions`** drives the action bar — disabled buttons carry human-readable `reason` strings
 - Invalid transitions are rejected in one place; UI must not hard-code status `if` checks
 
 Happy path: `GENERATING → READY_FOR_REVIEW → IN_REVIEW → APPROVED → LOCKED` (plus `FAILED`, `REJECTED`, `AMENDED` branches).
@@ -162,63 +220,96 @@ Dexie `mutationQueue` holds `create_version` / `transition` intents. Offline aut
 
 ### Real-Time — Reconcile channel with optimistic state
 
-App-wide WebSocket (`shared/realtime`): viewport note ids from the virtualizer + open detail; `presence.join` on detail. Events dedupe by `eventId`. `note.status_changed` / `note.version_added` patch TanStack Query (status chips live); dirty draft + foreign `version_added` opens the Phase 6 merge UI. Reconnect uses exponential backoff + jitter and resubscribes with `lastEventId` for replay. Header **Live** badge + presence avatars.
+App-wide WebSocket (`shared/realtime`): viewport note ids from the virtualizer + open detail; `presence.join` on detail. Events dedupe by `eventId` (capped set ~2k to avoid session leaks). `note.status_changed` / `note.version_added` patch TanStack Query; dirty draft + foreign `version_added` opens the Phase 6 merge UI. Reconnect uses exponential backoff + jitter and resubscribes with `lastEventId` for replay. Header **Live** badge + presence avatars. HTTP ack and WS event may arrive in either order — both paths are idempotent.
 
 ### Telemetry — Batch, retry, unload, PII redaction
 
-Only public API: `track(name, props, { important? })` in `shared/telemetry`. Client batches by size (20), timer (4s / 800ms if important), and `visibilitychange` / `pagehide`. After **3** failed sends the batch is **parked in Dexie** (`telemetryPark`) and replayed on later flushes. Unload uses `navigator.sendBeacon` then `fetch({ keepalive: true })`. `redactProps` strips SOAP/`content`/long strings before enqueue; API rejects those keys as defense in depth. Dev **Telemetry** panel shows counts only (no props). Instrumented: page views, autosave, transitions, offline drain, conflicts.
+Only public API: `track(name, props, { important? })` in `shared/telemetry`. Client batches by size (20), timer (4s / 800ms if important), and `visibilitychange` / `pagehide`. After **3** failed sends the batch is **parked in Dexie** (`telemetryPark`) and replayed on later flushes. Unload uses `navigator.sendBeacon` then `fetch({ keepalive: true })`. `redactProps` strips SOAP/`content`/long strings before enqueue; API rejects those keys as defense in depth. Dev **Telemetry** panel shows counts only (no props).
 
 ### Scale — List/detail/history at 100k+ notes
 
-_Phase 4:_ TanStack Virtual + infinite cursor query on `/notes`. Filters/sort/search URL-persisted. Seed up to 100k via `POST /api/dev/seed`. Detail version content loads on demand via `GET /notes/:id/versions/:versionId` (Phase 9).
+TanStack Virtual + infinite cursor query on `/notes`. Filters/sort/search URL-persisted. Seed up to 100k via `POST /api/dev/seed`. Detail version content loads on demand via `GET /notes/:id/versions/:versionId`. Viewport-scoped WS subscriptions (not one socket per row).
 
 ### Testing — Unit, integration, e2e posture
 
-- **Unit (done):** 32 Vitest cases for every legal/illegal edge, guard failure reasons, grace window, server-driven path, READONLY_AUDITOR, and `getAvailableActions`
-- **API smoke (Phase 2):** seed, list, transition, idempotent version save, 409 conflict, WebSocket subscribe/presence
-- **Integration / e2e:** deferred to later phases
+| Layer | What | Why |
+|---|---|---|
+| **Unit** | `noteMachine` (32 cases), `redactProps`, coalesced saver | Pure invariants + effect scheduling |
+| **Integration** | Dexie queue coalesce/order, `applyRealtimeEvent` dedupe + seen-id cap | Effectful modules without full browser |
+| **API sim** | `simulate_workflow.ts` + overlap / reject-resubmit / RT-before-ack / burst-500 | Assignment script + “build your own” scenarios |
+| **E2E smoke** | Playwright filter → open → edit → approve | One critical user path |
+
+**Chosen not to test exhaustively:** every UI permutation, visual regression, full 100k render timing in CI (manual/seed locally). Offline “3 pending muts + 20 min later” is covered by queue integration + Phase 8 Try in UI (Dexie survives reload); wall-clock 20 min is not automated.
 
 ### Accessibility — Keyboard, SR, WCAG 2.2 AA
 
-_Pending full pass by Phase 11._ Route-level `ErrorBoundary` (header stays up; Try again / Back to notes) pulled forward so render failures don’t blank the SPA.
+**Posture:** aim for WCAG 2.2 AA on critical flows; polish is secondary to architecture.
 
-## Dummy API (Phase 2)
+| Area | Status |
+|---|---|
+| Primary nav / role switcher | Landmark + labelled control |
+| Notes filters / table | Native controls; row checkboxes labelled |
+| SOAP editor | Per-section `<label>` + `aria-label` on textareas |
+| Actions | Disabled buttons expose machine `reason` via `title` |
+| Conflict modal | `role="dialog"` + labelled title |
+| Route crash | `ErrorBoundary` keeps chrome; alert + recovery actions |
+| **Gaps** | No full axe CI suite; focus trap in conflict modal is light; live regions for status/presence are minimal |
+
+### Error handling & auth posture
+
+- API errors surface as actionable UI (rollback, merge, queue hint) — not silent drops
+- Route `ErrorBoundary` prevents blank SPA
+- Auth is **simulated** (dev actors + capability matrix); server remains authoritative for transitions
+- Telemetry redacts PII; mutation queue may hold clinical text locally (IndexedDB) — acceptable for take-home offline demo, called out as a production hardening area (encryption-at-rest)
+
+## Assumptions
+
+1. Single mock API process; in-memory store resets on restart (seed is deterministic).
+2. No real IdP — `Act as` stands in for session identity.
+3. MFA for approve is a `window.confirm` stand-in.
+4. “20 minutes offline” is demonstrated by Dexie durability across reload, not a literal CI sleep.
+5. Evaluators run locally on Node 20+ / modern Chromium; no deploy required.
+6. Random chaos may make a single click flake; use `CHAOS=0` or fail-next for demos; sim retries 500s.
+
+## Verification checklist
+
+- [ ] `pnpm dev` — list virtualizes; detail autosaves; two-tab Live updates
+- [ ] Force 409 — merge UI keeps both sides’ intent
+- [ ] Offline edit → reload → online drain
+- [ ] Telemetry Emit sample — redacted props in Network
+- [ ] `pnpm test` green
+- [ ] `pnpm simulate` completes
+- [ ] `pnpm test:e2e` green
+
+## Dummy API
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/health` | Store stats |
 | POST | `/api/dev/seed` | `{ count, seed? }` deterministic |
-| GET | `/api/dev/users` | Seeded actors (`dr_a`…, clinicians, …) |
+| GET | `/api/dev/users` | Seeded actors |
 | GET | `/api/dev/ready-note` | First `READY_FOR_REVIEW` |
-| GET | `/api/notes` | Cursor + `status`, `reviewerId`, `patientId`, `q`, `sort`, `order`, `limit` |
+| GET | `/api/notes` | Cursor + filters/sort |
 | GET | `/api/notes/:id` | Detail + versions meta + review events |
-| GET | `/api/notes/:id/versions/:versionId` | Full version content (for history diffs) |
+| GET | `/api/notes/:id/versions/:versionId` | Full version content |
 | POST | `/api/notes/:id/versions` | `baseVersionId`, `content`, `clientMutationId` |
-| POST | `/api/notes/:id/transitions` | `{ to, actorId, reason?, mfaVerified?, clientMutationId? }` — validated by `noteMachine` |
-| POST | `/api/telemetry/batch` | Batched client events (`batchId` + redacted props); rejects PII-ish keys |
-| GET | `/api/telemetry/recent` | Last ingested batch summaries (names/counts only) |
+| POST | `/api/notes/:id/transitions` | Validated by `noteMachine` |
+| POST | `/api/telemetry/batch` | Batched events; rejects PII-ish keys |
+| GET | `/api/telemetry/recent` | Batch summaries |
 | WS | `/ws` | `subscribe` / `replay` / `presence.join` |
 
-Chaos (default on): 100–800ms latency, ~5% `500`, ~2% forced version conflicts. Disable with `CHAOS=0`. Deterministic demos via `POST /api/dev/chaos` `{ "failNext": { "versions": 1, "noteGets": 1, "conflicts": 1, "transitions": 1, "telemetry": 3 } }` or request header `X-Force-Conflict: 1`. Auto-seed 5000 notes unless `AUTO_SEED=0`. Telemetry routes skip random chaos so park demos stay deterministic.
-
-```bash
-curl -X POST http://localhost:3001/api/dev/seed -H 'content-type: application/json' -d '{"count":5000,"seed":42}'
-```
+Chaos (default on): latency, ~5% `500`, ~2% version conflicts. `CHAOS=0` disables. `POST /api/dev/chaos` `{ "failNext": { "versions": 1, "telemetry": 3, ... } }`. Auto-seed 5000 unless `AUTO_SEED=0`.
 
 ## Auth & guards (Phase 3)
 
-Client-side only (UX). Server remains authoritative.
+Client-side UX only. Server remains authoritative.
 
 | Layer | Mechanism |
 |---|---|
-| Route | `RequireCapability` → permission denied panel (≠ empty data) |
+| Route | `RequireCapability` → permission denied panel |
 | Nav | Struck-through items with `title` reason |
-| Action | `GuardedButton` disabled + reason tooltip |
-| Session | Zustand `useSessionStore` (persisted); `X-Actor-Id` on API calls |
-
-Capabilities live in `entities/user/model/permissions.ts`. Mock actors live in `entities/user/model/actors.ts` (dev role switcher only).
-
-**No real IdP in this take-home.** The assignment asks for role-based guards as UX, not Clerk/Auth0/OIDC. Phase 3 is simulated auth so we can prove route/action gating. A production swap would: replace `DEV_ACTORS` + switcher with token/`/me` → `setActor(user)`, keep the same `can(role, capability)` matrix. That is out of the planned phases unless we add it as an explicit bonus.
+| Action | Disabled + machine/capability reason |
+| Session | Zustand persist; `X-Actor-Id` on API calls |
 
 ## Phase status
 
@@ -233,4 +324,4 @@ Capabilities live in `entities/user/model/permissions.ts`. Mock actors live in `
 - [x] Phase 8 — Offline queue
 - [x] Phase 9 — Version history
 - [x] Phase 10 — Telemetry
-- [ ] Phase 11 — Simulation, tests, README polish
+- [x] Phase 11 — Simulation, tests, README polish
