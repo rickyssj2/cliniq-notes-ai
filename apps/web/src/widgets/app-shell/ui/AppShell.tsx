@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
-import { can, SessionBadge, useRole, type Capability } from "@entities/user";
+import { can, useRole, type Capability } from "@entities/user";
 import { RoleSwitcher } from "@features/switch-role";
 import { RealtimeStatusBadge } from "@features/realtime-sync";
 import {
@@ -21,7 +21,6 @@ const NAV: NavItem[] = [
   { to: "/", label: "Home", capability: "view_notes" },
   { to: "/notes", label: "Notes", capability: "view_notes" },
   { to: "/admin", label: "Admin", capability: "access_admin" },
-  { to: "/lab", label: "API Lab", capability: "access_api_lab" },
 ];
 
 function navClass(isActive: boolean, allowed: boolean) {
@@ -44,14 +43,13 @@ export function AppShell() {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
           <p className="shrink-0 text-sm font-semibold tracking-tight">
             Soulside
           </p>
 
-          {/* Desktop nav */}
           <nav
             className="hidden min-w-0 flex-1 items-center gap-1 md:flex"
             aria-label="Primary"
@@ -87,19 +85,19 @@ export function AppShell() {
             <RealtimeStatusBadge online={online} />
             <button
               type="button"
-              className="hidden rounded-md px-2 py-1 text-xs text-[var(--muted)] hover:bg-black/5 hover:text-[var(--foreground)] sm:inline"
+              className="hidden items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--muted)] hover:bg-black/5 hover:text-[var(--foreground)] sm:inline-flex"
               title="Keyboard shortcuts (?)"
               onClick={() =>
                 window.dispatchEvent(new Event(OPEN_SHORTCUTS_EVENT))
               }
             >
               Shortcuts
+              <kbd className="rounded border border-[var(--border)] bg-stone-50 px-1 py-0.5 font-mono text-[10px]">
+                ?
+              </kbd>
             </button>
             <div className="hidden sm:block">
               <RoleSwitcher />
-            </div>
-            <div className="hidden lg:block">
-              <SessionBadge />
             </div>
             <button
               type="button"
@@ -114,7 +112,6 @@ export function AppShell() {
           </div>
         </div>
 
-        {/* Mobile drawer */}
         <div
           id="mobile-nav"
           className={cn(
@@ -152,26 +149,47 @@ export function AppShell() {
           <div className="mt-3 flex flex-col gap-3 border-t border-[var(--border)] pt-3 sm:hidden">
             <button
               type="button"
-              className="rounded-md px-2 py-1.5 text-left text-sm text-[var(--muted)] hover:bg-black/5"
+              className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[var(--muted)] hover:bg-black/5"
               onClick={() =>
                 window.dispatchEvent(new Event(OPEN_SHORTCUTS_EVENT))
               }
             >
-              Keyboard shortcuts (?)
+              Keyboard shortcuts
+              <kbd className="rounded border border-[var(--border)] bg-stone-50 px-1 py-0.5 font-mono text-[10px]">
+                ?
+              </kbd>
             </button>
             <RoleSwitcher />
-            <SessionBadge />
           </div>
         </div>
       </header>
       <ConnectivityBanner />
-      <AppErrorBoundary
-        label="page"
-        variant="page"
-        resetKeys={[location.pathname]}
-      >
-        <Outlet />
-      </AppErrorBoundary>
+      <div className="flex-1">
+        <AppErrorBoundary
+          label="page"
+          variant="page"
+          resetKeys={[location.pathname]}
+        >
+          <Outlet />
+        </AppErrorBoundary>
+      </div>
+      <footer className="mt-auto border-t border-[var(--border)] bg-[var(--card)]/80">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p>
+            © {new Date().getFullYear()} Soulside AI — Clinical notes take-home
+            demo. Not for production use.
+          </p>
+          <p className="flex flex-wrap gap-x-3 gap-y-1">
+            <span>Privacy</span>
+            <span aria-hidden="true">·</span>
+            <span>Terms</span>
+            <span aria-hidden="true">·</span>
+            <span>Support</span>
+            <span aria-hidden="true">·</span>
+            <span>Status</span>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

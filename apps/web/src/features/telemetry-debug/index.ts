@@ -1,2 +1,4 @@
-export { TelemetryDebugPanel } from "./ui/TelemetryDebugPanel";
-export { useTelemetryPageViews } from "./model/use-page-views";
+export {
+  TelemetryDebugPanel,
+  TOGGLE_TELEMETRY_EVENT,
+} from "./ui/TelemetryDebugPanel";

@@ -12,6 +12,8 @@ const buttonVariants = cva(
         outline:
           "border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-white",
         ghost: "hover:bg-black/5",
+        danger:
+          "bg-[var(--danger)] text-white hover:opacity-90",
       },
       size: {
         default: "h-10 px-4 py-2",

@@ -499,7 +499,7 @@ export class NoteStore {
             S: head.content.sections.S,
             O: head.content.sections.O,
             A: head.content.sections.A,
-            P: `${head.content.sections.P}\n[concurrent edit @ ${new Date().toISOString()}]`,
+            P: `${head.content.sections.P}\n[simulated concurrent edit @ ${new Date().toISOString()}]`,
           },
         },
         authoredBy: concurrent,

@@ -20,10 +20,12 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
   }, [filters.q]);
 
   useEffect(() => {
-    if (debouncedSearch !== filters.q) {
-      onChange({ q: debouncedSearch });
-    }
-  }, [debouncedSearch, filters.q, onChange]);
+    if (debouncedSearch === filters.q) return;
+    // Avoid racing Clear: draft already matches URL, but debounce may still
+    // hold the previous query for one tick.
+    if (searchDraft === filters.q) return;
+    onChange({ q: debouncedSearch });
+  }, [debouncedSearch, filters.q, onChange, searchDraft]);
 
   const reviewers = users.filter((u) => u.role === "REVIEWER");
 
@@ -34,11 +36,16 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
     onChange({ statuses: [...set] });
   };
 
+  const handleClear = () => {
+    setSearchDraft("");
+    onClear();
+  };
+
   return (
     <section className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold tracking-wide uppercase">Filters</h2>
-        <Button type="button" size="sm" variant="ghost" onClick={onClear}>
+        <Button type="button" size="sm" variant="ghost" onClick={handleClear}>
           Clear
         </Button>
       </div>

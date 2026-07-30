@@ -3,7 +3,8 @@ import type { NoteDetail, NoteSummary, VersionConflictError } from "@soulside/do
 import { applyServerStatusChange } from "@soulside/domain";
 import type { RealtimeEvent } from "@shared/realtime";
 import { log } from "@shared/logging";
-import { notesQueryKeys } from "../api/query-keys";
+import { notesQueryKeys, type NotesFilterState } from "../api/query-keys";
+import { noteMatchesListFilters } from "./note-matches-list-filters";
 import {
   isDraftDirty,
   useEditorDraftStore,
@@ -25,20 +26,27 @@ function rememberEventId(eventId: string): boolean {
 }
 
 function patchNoteInLists(queryClient: QueryClient, patch: Partial<NoteSummary> & { id: string }) {
-  queryClient.setQueriesData<
-    { pages: Array<{ items: NoteSummary[] }>; pageParams: unknown[] } | undefined
-  >({ queryKey: notesQueryKeys.lists() }, (old) => {
-    if (!old) return old;
-    return {
+  const queries = queryClient.getQueriesData<{
+    pages: Array<{ items: NoteSummary[] }>;
+    pageParams: unknown[];
+  }>({ queryKey: notesQueryKeys.lists() });
+
+  for (const [queryKey, old] of queries) {
+    if (!old) continue;
+    const params = queryKey[2] as NotesFilterState | undefined;
+    queryClient.setQueryData(queryKey, {
       ...old,
       pages: old.pages.map((page) => ({
         ...page,
-        items: page.items.map((item) =>
-          item.id === patch.id ? { ...item, ...patch } : item,
-        ),
+        items: page.items.flatMap((item) => {
+          if (item.id !== patch.id) return [item];
+          const next = { ...item, ...patch };
+          if (params && !noteMatchesListFilters(next, params)) return [];
+          return [next];
+        }),
       })),
-    };
-  });
+    });
+  }
 }
 
 /**

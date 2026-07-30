@@ -1,71 +1,102 @@
 # Hexagonal architecture (ports & adapters)
 
-Maps this repo onto hexagonal / ports-adapters thinking. The goal of the diagram: **domain stays pure; React, HTTP, WS, and Dexie are replaceable adapters.**
+**Honest take:** we use hexagonal **principles on the clinical lifecycle core**, not a textbook hexagon for the entire SPA.
 
-## Diagram
+| Hexagonal rule | Here? |
+|---|---|
+| Domain has no UI / DB / HTTP | **Yes** — `packages/domain` |
+| Outside enters via a port | **Mostly** — `can` / `transition` / `getAvailableActions` |
+| UI and API share the same core | **Yes** |
+| Formal outbound Port interfaces (`NoteRepository`) | **Soft** — domain returns `TransitionEffect[]`; adapters apply them |
+| Every feature (list, WS, telemetry) is hexagonal | **No** — FSD + Query/Zustand around the core |
+
+**Interview line:** *“Hexagonal core for note lifecycle; the rest is FSD + state topology.”*
+
+Pick the diagram style you prefer (image / ASCII / Mermaid).
+
+---
+
+## LucidChart-style
+
+![Hexagonal core — Soulside](./images/hexagonal-architecture.png)
+
+---
+
+## ASCII blocks
+
+```
+┌──────────────────────┐                      ┌──────────────────────┐
+│  DRIVING ADAPTERS    │                      │  DRIVEN ADAPTERS     │
+│  (call into core)    │                      │  (outside world)     │
+│                      │                      │                      │
+│  • React Action Bar  │                      │  • Hono REST API     │
+│  • Bulk actions      │                      │  • In-memory store   │
+│  • API Lab           │                      │  • WebSocket hub     │
+│  • simulate_workflow │                      │                      │
+└──────────┬───────────┘                      └──────────▲───────────┘
+           │ intents                                     │ apply effects
+           ▼                                             │
+┌──────────────────────────────────────┐                 │
+│         INBOUND PORT                 │                 │
+│  can / transition /                  │                 │
+│  getAvailableActions                 │                 │
+└──────────────────┬───────────────────┘                 │
+                   ▼                                     │
+         ╔═══════════════════════╗                       │
+         ║   DOMAIN CORE         ║                       │
+         ║   packages/domain     ║                       │
+         ║  noteMachine          ║                       │
+         ║  TRANSITIONS + guards ║                       │
+         ║  types (Note, Role…)  ║                       │
+         ╚══════════╤════════════╝                       │
+                    │                                    │
+                    ▼                                    │
+         ┌──────────────────────┐                        │
+         │ OUTBOUND (declared)  │────────────────────────┘
+         │ TransitionEffect[]   │
+         │ assign_reviewer …    │
+         └──────────────────────┘
+```
+
+**One sentence:** UI/API ask the machine → machine returns ok/fail + effects → API store applies effects. Domain never touches HTTP.
+
+---
+
+## Mermaid (optional)
 
 ```mermaid
 flowchart TB
-  subgraph driving [Driving adapters — call into the domain]
-    UI[React UI<br/>pages / widgets / features]
-    Lab[API Lab / simulate_workflow]
+  subgraph driving [Driving adapters]
+    UI[React UI]
+    Lab[API Lab / simulate]
   end
-
-  subgraph portsIn [Inbound ports — intents]
-    Actions["NoteAction<br/>start_review / approve / …"]
-    Can["can / transition / getAvailableActions"]
+  subgraph portsIn [Inbound port]
+    Can[can / transition / getAvailableActions]
   end
-
-  subgraph core [Domain core — packages/domain]
-    SM[noteMachine<br/>TRANSITIONS + guards + effects]
-    Types[Note / SoapContent / Role types]
+  subgraph core [Domain core]
+    SM[noteMachine]
   end
-
-  subgraph portsOut [Outbound ports — side effects declared, not executed]
-    Effects["TransitionEffect<br/>assign_reviewer / require_new_version / …"]
+  subgraph portsOut [Outbound declared]
+    Effects[TransitionEffect]
   end
-
-  subgraph driven [Driven adapters — talk to the outside]
-    REST[Hono REST /api]
-    WS[WebSocket /ws]
-    TQ[TanStack Query cache]
-    DX[Dexie mutationQueue / telemetryPark]
-    Tel[Telemetry batcher]
+  subgraph driven [Driven adapters]
+    REST[Hono REST]
+    WS[WebSocket]
   end
-
-  UI --> Actions
-  Lab --> Actions
-  Actions --> Can
+  UI --> Can
+  Lab --> Can
   Can --> SM
-  SM --> Types
   SM --> Effects
   Effects --> REST
-  UI --> TQ
-  UI --> DX
-  TQ --> REST
-  UI --> WS
   REST --> SM
-  WS --> TQ
-  Tel --> REST
-  Tel --> DX
 ```
 
-## How to read it in this codebase
+---
 
-| Hexagon idea | Soulside mapping |
+## Code map
+
+| Hexagon idea | Path |
 |---|---|
-| **Core** | `packages/domain` — no React, no `fetch`, no IndexedDB |
-| **Inbound port** | `can` / `transition` / `getAvailableActions` — UI asks “may I?” before POST |
-| **Outbound effects** | `TransitionEffect[]` — domain *declares* assign/release; API *applies* them |
-| **Driving adapter** | Action bar, bulk bar, Lab, simulation script |
-| **Driven adapter** | `shared/api`, `shared/realtime`, Dexie queues, telemetry |
-
-## Interview one-liner
-
-> We kept clinical lifecycle invariants in a pure module so both the SPA and the mock API validate the same edges. UI and storage are adapters; they must not invent status rules.
-
-## Related code
-
-- `packages/domain/src/note-machine/`
-- `apps/web/src/features/transition-note/`
-- `apps/api` transition handlers (server also consults the machine)
+| Core | `packages/domain/src/note-machine/` |
+| Driving | `apps/web/src/features/transition-note/` |
+| Driven | `apps/api` store + REST/WS |

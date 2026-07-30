@@ -9,8 +9,11 @@ import { getLastCorrelationId } from "@shared/correlation";
 import { apiFetch } from "@shared/api";
 import { Button } from "@shared/ui/button";
 
+export const TOGGLE_TELEMETRY_EVENT = "soulside:toggle-telemetry";
+
 /**
  * Dev-only panel: queue/batch/park counts — never shows event props (PII).
+ * Toggle with `T` or the FAB button.
  */
 export function TelemetryDebugPanel() {
   const [open, setOpen] = useState(false);
@@ -21,6 +24,12 @@ export function TelemetryDebugPanel() {
   );
   const [serverBatches, setServerBatches] = useState<number | null>(null);
   const [lastCorr, setLastCorr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onToggle = () => setOpen((v) => !v);
+    window.addEventListener(TOGGLE_TELEMETRY_EVENT, onToggle);
+    return () => window.removeEventListener(TOGGLE_TELEMETRY_EVENT, onToggle);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -39,9 +48,14 @@ export function TelemetryDebugPanel() {
     <div className="fixed right-3 bottom-3 z-40 flex flex-col items-end gap-2">
       {open && (
         <div className="w-72 space-y-2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 text-xs shadow-lg">
-          <p className="font-semibold tracking-wide uppercase text-[var(--muted)]">
-            Telemetry (dev)
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold tracking-wide uppercase text-[var(--muted)]">
+              Telemetry (dev)
+            </p>
+            <kbd className="rounded border border-[var(--border)] bg-stone-50 px-1.5 py-0.5 font-mono text-[10px]">
+              T
+            </kbd>
+          </div>
           <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
             <dt className="text-[var(--muted)]">Buffered</dt>
             <dd className="font-mono">{stats.buffered}</dd>
@@ -128,8 +142,9 @@ export function TelemetryDebugPanel() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-[11px] font-medium shadow-sm hover:bg-stone-50"
+        title="Telemetry (T)"
       >
-        {open ? "Hide telemetry" : "Telemetry"}
+        {open ? "Hide telemetry" : "Telemetry · T"}
       </button>
     </div>
   );

@@ -2,72 +2,68 @@
 
 Server entities do **not** live in Zustand. Dexie is **not** a notes cache — only durable *client intent*.
 
-The four layers you named (Zustand / TanStack Query / Dexie / URL) are the primary stores. Also in the picture: **pure `noteMachine`**, **telemetry in-memory buffer**, and **WebSocket presence/cursor**.
+Pick the diagram style you prefer (image / ASCII / Mermaid).
 
-## Diagram
+---
 
-```mermaid
-flowchart TB
-  subgraph navigational [Navigational]
-    URL["URL search params<br/>filters · sort · search · note id"]
-  end
+## LucidChart-style
 
-  subgraph syncClient [Sync client UI — Zustand]
-    ZS["session/actor · SOAP drafts · selection<br/>presence snapshot · conflict modal · connectivity"]
-  end
+![State layers](./images/state-layers.png)
 
-  subgraph asyncServer [Async server cache — TanStack Query]
-    TQ["notes list / detail / versions<br/>optimistic patches · WS reconcile<br/>gcTime 35m · offline-first reads"]
-  end
+---
 
-  subgraph durableIntent [Durable client intent — Dexie]
-    MQ["mutationQueue<br/>create_version / transition"]
-    TP["telemetryPark<br/>failed batches after retries"]
-  end
+## ASCII blocks
 
-  subgraph ephemeralWire [Ephemeral / wire]
-    BUF["Telemetry in-memory buffer"]
-    WS["WebSocket cursor + presence"]
-  end
-
-  subgraph domain [Pure domain — packages/domain]
-    SM["noteMachine — no React, no I/O"]
-  end
-
-  URL -->|"query key inputs"| TQ
-  ZS -->|"draft / dirty"| TQ
-  ZS -->|"can / getAvailableActions"| SM
-  TQ --> REST[REST]
-  MQ -->|"drain on online"| REST
-  BUF -->|"flush"| REST
-  BUF -.->|"park after N fails"| TP
-  TP -->|"replay on online / flush"| REST
-  WS -->|"status / version / presence"| TQ
-  WS -->|"dirty + foreign version → merge"| ZS
 ```
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│     URL     │   │   Zustand   │   │ TanStack    │   │    Dexie    │
+│  filters    │   │  drafts /   │   │   Query     │   │  outbox +   │
+│  sort / q   │   │  session    │   │  notes      │   │  telemetry  │
+└──────┬──────┘   └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+       │                 │                 │                 │
+       │                 ├──can/actions──►┌──────────┐       │
+       │                 │                │  domain  │       │
+       │                 │                │  machine │       │
+       │                 │                └──────────┘       │
+       └─────────────────┴────────┬────────┘                 │
+                                  ▼                          ▼
+                            ┌──────────┐              drain / flush
+                            │ REST+WS  │◄────────────────────┘
+                            └──────────┘
+```
+
+---
 
 ## Decision table
 
 | Data | Store | Why |
 |---|---|---|
-| Note list / detail / versions | TanStack Query | Shared server ownership; stale, refetch, optimistic patch |
-| Actor / “Act as” | Zustand + persist | Session UX; not authoritative auth |
-| Dirty SOAP draft | Zustand | Local typing; coalesced before POST |
-| List filters | URL | Shareable / deep-linkable |
-| Pending save while offline | Dexie `mutationQueue` | Survives reload; outbox pattern |
-| Parked telemetry | Dexie `telemetryPark` | Survive failed flushes; drain on `online` |
+| Note list / detail / versions | TanStack Query | Shared server ownership |
+| Actor / “Act as” | Zustand + persist | Session UX |
+| Dirty SOAP draft | Zustand | Local typing before POST |
+| List filters | URL | Deep-linkable |
+| Pending offline save | Dexie `mutationQueue` | Survives reload |
+| Parked telemetry | Dexie `telemetryPark` | Survive failed flushes |
 | Legal transitions | `noteMachine` | Single source of truth |
-| Live presence / WS cursor | Zustand snapshot + WS client | Ephemeral fan-in into Query |
 
-## Anti-patterns we avoided
+---
 
-1. Putting full `Note` entities in Zustand (duplicates TQ, fights WS updates).
-2. Using Dexie as an offline mirror of all notes (huge sync surface; take-home uses queue-only).
-3. Encoding status `if` trees in UI components (machine owns edges).
+## Mermaid (optional)
+
+```mermaid
+flowchart LR
+  URL[URL filters] --> TQ[TanStack Query]
+  ZS[Zustand drafts/session] --> SM[noteMachine]
+  ZS --> TQ
+  TQ --> REST[REST]
+  DX[Dexie outbox] -->|drain| REST
+  WS[WebSocket] -->|patch| TQ
+```
+
+---
 
 ## Related code
 
-- `apps/web/src/shared/api/query-client.ts` — `gcTime: 35m`, mutations `retry: false`
+- `apps/web/src/shared/api/query-client.ts`
 - `apps/web/src/features/offline-queue/`
-- `apps/web/src/features/edit-soap/` + `autosave-note/`
-- `apps/web/src/shared/telemetry/client.ts`
+- `apps/web/src/features/autosave-note/`

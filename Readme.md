@@ -12,7 +12,6 @@ pnpm dev
 ```
 
 - Web: [http://localhost:5173](http://localhost:5173)
-- API Lab: [http://localhost:5173/lab](http://localhost:5173/lab)
 - API health: [http://localhost:3001/api/health](http://localhost:3001/api/health) (proxied at `/api/health`)
 
 API auto-seeds **100,000** notes (`SEED_COUNT`, default `100000`). First boot can take a few seconds. Smaller seed: `SEED_COUNT=500 pnpm dev:api`. Chaos defaults on; demos: `CHAOS=0`.
@@ -235,22 +234,20 @@ TanStack Virtual + infinite cursor query. Filters/sort/search URL-persisted. Def
 
 ### Keyboard shortcuts
 
-Primary CTAs show their key on the button (green Start review / Approve). Header **Shortcuts** (or `?`) opens the full list.
+Primary CTAs show their key on the button (green Start review / Approve / Amend; red Reject). Header **Shortcuts ?** opens the full list.
 
 | Keys | Action |
 |---|---|
 | `?` | Shortcuts help |
 | `D` | Toggle demo controls FAB (dev) |
-| `R` / `A` | Start review / Approve |
+| `T` | Toggle telemetry panel (dev) |
+| `R` / `A` / `M` / `X` / `E` | Start review / Approve / Amend / Reject / Return |
+| `⌃S/O/A/P` (Mac) or `Alt+S/O/A/P` (Win) | Focus SOAP section (works while typing) |
 | `⌘/Ctrl+S` | Save draft |
 | `/` | Focus notes search |
-| `g` `n` / `h` / `l` | Notes / Home / Lab |
+| `g` `n` / `h` | Notes / Home |
 | `j` / `k` / `Enter` | Row focus / open note |
 | `Esc` | Close help / conflict |
-
-### API Lab (`/lab`)
-
-Optional. The product UI + DevTools cover most demos (list, detail, offline, chaos fail-next via Demo FAB). Keep Lab if you want a **single console** for: reseed without restart, pick a READY note by API, raw WS connect/log, force stale `baseVersionId` conflict without the editor, and chaos toggle without leaving the page. Safe to ignore for day-to-day review of the SPA.
 
 ### Testing — Unit, integration, e2e posture
 

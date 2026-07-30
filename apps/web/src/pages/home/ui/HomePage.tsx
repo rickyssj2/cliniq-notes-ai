@@ -49,7 +49,7 @@ export function HomePage() {
       </h1>
       <p className="max-w-2xl text-base text-[var(--muted)]">
         Signed in as <strong>{actor.displayName}</strong> ({actor.role}). Use the
-        header switcher to change roles and watch nav + route guards update.
+        header avatar to change roles and watch nav + route guards update.
       </p>
       <ul className="space-y-2 text-sm text-[var(--muted)]">
         <li>
@@ -70,15 +70,6 @@ export function HomePage() {
           </Link>{" "}
           — ADMIN only
         </li>
-        <li>
-          <Link
-            className="text-[var(--accent)] underline-offset-4 hover:underline"
-            to="/lab"
-          >
-            API Lab
-          </Link>{" "}
-          — optional REST/WS console (see README)
-        </li>
       </ul>
       {import.meta.env.DEV ? (
         <p className="border-t border-[var(--border)] pt-6 text-xs text-[var(--muted)]">
@@ -94,7 +85,8 @@ export function HomePage() {
           >
             Demo · D
           </Button>{" "}
-          bar. Press <kbd className="font-mono">?</kbd> for all shortcuts.
+          bar. Press <kbd className="font-mono">?</kbd> for shortcuts ·{" "}
+          <kbd className="font-mono">T</kbd> telemetry.
         </p>
       ) : null}
     </main>

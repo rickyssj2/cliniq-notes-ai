@@ -14,4 +14,5 @@ export {
 } from "./model/session";
 export { RequireCapability } from "./ui/RequireCapability";
 export { SessionBadge } from "./ui/SessionBadge";
+export { ActorAvatar } from "./ui/ActorAvatar";
 export { GuardedButton } from "./ui/GuardedButton";

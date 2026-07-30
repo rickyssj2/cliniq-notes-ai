@@ -131,14 +131,9 @@ export function NotesTable({
       <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--card)] px-6 py-16 text-center">
         <p className="font-medium">No notes in the workspace yet</p>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          This is an empty dataset — seed from the API Lab, then come back.
+          Empty dataset — restart the API (auto-seeds 100k) or set{" "}
+          <code>SEED_COUNT</code>, then come back.
         </p>
-        <Link
-          to="/lab"
-          className="mt-4 inline-flex text-sm text-[var(--accent)] underline-offset-4 hover:underline"
-        >
-          Open API Lab
-        </Link>
       </div>
     );
   }

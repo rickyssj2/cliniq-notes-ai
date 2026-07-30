@@ -65,6 +65,7 @@ export function NoteWorkspace({ note }: Props) {
   );
   const [autosaveOn, setAutosaveOn] = useState(true);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("none");
+  const [failNextArmed, setFailNextArmed] = useState(false);
   const online = useEffectiveOnline();
   const pendingAll = usePendingMutationCount();
   const registerDemo = useDemoControlsStore((s) => s.register);
@@ -105,6 +106,12 @@ export function NoteWorkspace({ note }: Props) {
   });
 
   useEffect(() => {
+    if (failNextArmed && autosave.status === "error") {
+      setFailNextArmed(false);
+    }
+  }, [failNextArmed, autosave.status]);
+
+  useEffect(() => {
     if (readOnly) {
       registerDemo([
         {
@@ -128,11 +135,15 @@ export function NoteWorkspace({ note }: Props) {
       },
       {
         id: "fail-next",
-        label: "Fail next save (500)",
+        label: failNextArmed
+          ? "Armed: next save → 500"
+          : "Fail next save (500)",
+        active: failNextArmed,
         onClick: () => {
-          void setDevFailNext({ versions: 1 }).then(() =>
-            setDemoMessage("Next version POST will 500 (rollback optimism)"),
-          );
+          void setDevFailNext({ versions: 1 }).then(() => {
+            setFailNextArmed(true);
+            setDemoMessage("Next version POST will 500 (rollback optimism)");
+          });
         },
       },
       {
@@ -154,6 +165,7 @@ export function NoteWorkspace({ note }: Props) {
     setDemoMessage,
     autosave.forceConflictNext,
     autosave.setForceConflictNext,
+    failNextArmed,
   ]);
 
   const modKey =
@@ -247,6 +259,13 @@ export function NoteWorkspace({ note }: Props) {
                     checked={autosaveOn}
                     disabled={readOnly}
                     onChange={(e) => setAutosaveOn(e.target.checked)}
+                    onKeyDown={(e) => {
+                      // Native checkboxes toggle on Space only; Enter is expected by many users.
+                      if (e.key === "Enter" && !readOnly) {
+                        e.preventDefault();
+                        setAutosaveOn((on) => !on);
+                      }
+                    }}
                   />
                   Autosave
                 </label>
@@ -263,8 +282,8 @@ export function NoteWorkspace({ note }: Props) {
                   onClick={() => void autosave.saveNow()}
                 >
                   {saveLabel(autosave.status, dirty, pendingAll)}
-                  <kbd className="ml-1 rounded bg-black/10 px-1 py-0.5 font-mono text-[10px] opacity-90">
-                    {modKey}S
+                  <kbd className="ml-1.5 rounded bg-black/10 px-1.5 py-0.5 font-mono text-[10px] opacity-90">
+                    {modKey}&nbsp;S
                   </kbd>
                 </Button>
               </div>

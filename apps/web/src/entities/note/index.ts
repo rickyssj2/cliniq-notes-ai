@@ -21,6 +21,7 @@ export {
 export {
   notesQueryKeys,
   type NotesListParams,
+  type NotesFilterState,
   type NotesSortField,
   type NotesSortOrder,
 } from "./api/query-keys";
@@ -38,7 +39,6 @@ export {
   useNotesInfiniteQuery,
   usePatchNoteInLists,
   flattenNotesPages,
-  type NotesFilterState,
 } from "./api/use-notes-query";
 export { useNoteDetailQuery } from "./api/use-note-detail";
 export { useNoteVersionQuery } from "./api/use-note-version";

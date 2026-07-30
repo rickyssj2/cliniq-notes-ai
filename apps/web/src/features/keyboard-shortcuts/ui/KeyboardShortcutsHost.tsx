@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import type { SoapSection } from "@soulside/domain";
 import { useConflictStore } from "@entities/note";
 import { TOGGLE_DEMO_EVENT } from "@features/demo-controls";
+import { TOGGLE_TELEMETRY_EVENT } from "@features/telemetry-debug";
 import { Button } from "@shared/ui/button";
 
 export const OPEN_SHORTCUTS_EVENT = "soulside:open-shortcuts";
@@ -15,17 +17,44 @@ type ShortcutRow = {
 const SHORTCUTS: ShortcutRow[] = [
   { keys: "?", action: "Show this shortcuts help" },
   { keys: "D", action: "Toggle demo controls FAB", when: "Dev" },
+  { keys: "T", action: "Toggle telemetry panel", when: "Dev" },
   { keys: "/", action: "Focus notes search", when: "Notes list" },
   { keys: "g then n", action: "Go to Notes" },
   { keys: "g then h", action: "Go to Home" },
-  { keys: "g then l", action: "Go to API Lab" },
   { keys: "R", action: "Start review", when: "Note detail" },
   { keys: "A", action: "Approve", when: "Note detail" },
+  { keys: "M", action: "Amend", when: "Note detail" },
+  { keys: "X", action: "Reject (opens confirm)", when: "Note detail" },
+  { keys: "E", action: "Return to queue", when: "Note detail" },
+  {
+    keys: "⌃S/O/A/P",
+    action: "Focus SOAP section (Mac Ctrl)",
+    when: "Note detail",
+  },
+  {
+    keys: "Alt+S/O/A/P",
+    action: "Focus SOAP section (Windows/Linux)",
+    when: "Note detail",
+  },
   { keys: "⌘/Ctrl+S", action: "Save draft now", when: "Note detail" },
   { keys: "Esc", action: "Close dialog / help" },
   { keys: "j / k", action: "Move focus down / up rows", when: "Notes list" },
   { keys: "Enter", action: "Open focused note", when: "Notes list" },
 ];
+
+const SOAP_BY_KEY: Record<string, SoapSection> = {
+  s: "S",
+  o: "O",
+  a: "A",
+  p: "P",
+};
+
+function isMacPlatform() {
+  return (
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad/.test(navigator.platform)
+  );
+}
 
 function isTypingTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
@@ -44,6 +73,34 @@ function clickShortcutAction(key: string) {
     return true;
   }
   return false;
+}
+
+function focusSoapSection(section: SoapSection) {
+  const el = document.querySelector<HTMLTextAreaElement>(
+    `[data-soap-section="${section}"]`,
+  );
+  if (!el || el.disabled) return false;
+  el.focus();
+  const end = el.value.length;
+  el.setSelectionRange(end, end);
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  return true;
+}
+
+/**
+ * SOAP section chords work even while typing in a textarea.
+ * Mac: Ctrl+S/O/A/P (⌃, not ⌘ — ⌘S remains Save).
+ * Win/Linux: Alt+S/O/A/P (Ctrl+S stays Save; Ctrl+A/P are browser defaults).
+ */
+function soapSectionFromEvent(e: KeyboardEvent): SoapSection | null {
+  const section = SOAP_BY_KEY[e.key.toLowerCase()];
+  if (!section) return null;
+  if (isMacPlatform()) {
+    if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) return section;
+  } else if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    return section;
+  }
+  return null;
 }
 
 /**
@@ -86,8 +143,20 @@ export function KeyboardShortcutsHost() {
         }
       }
 
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "s") {
+      // SOAP focus — before typing-target bail so it works inside textareas.
+      const soap = soapSectionFromEvent(e);
+      if (soap) {
+        if (focusSoapSection(soap)) e.preventDefault();
+        return;
+      }
+
+      // Save: ⌘S (Mac) or Ctrl+S (Win). On Mac, Ctrl+S is SOAP Subjective above.
+      const isSaveChord =
+        e.key.toLowerCase() === "s" &&
+        !e.altKey &&
+        !e.shiftKey &&
+        (isMacPlatform() ? e.metaKey : e.ctrlKey);
+      if (isSaveChord) {
         const saveBtn = document.querySelector<HTMLButtonElement>(
           "[data-shortcut-save]",
         );
@@ -110,9 +179,6 @@ export function KeyboardShortcutsHost() {
         } else if (k === "h") {
           e.preventDefault();
           navigate("/");
-        } else if (k === "l") {
-          e.preventDefault();
-          navigate("/lab");
         }
         return;
       }
@@ -129,6 +195,17 @@ export function KeyboardShortcutsHost() {
         return;
       }
 
+      if (e.key.toLowerCase() === "t") {
+        e.preventDefault();
+        window.dispatchEvent(new Event(TOGGLE_TELEMETRY_EVENT));
+        return;
+      }
+
+      if (e.key.toLowerCase() === "e") {
+        if (clickShortcutAction("E")) e.preventDefault();
+        return;
+      }
+
       if (e.key.toLowerCase() === "r") {
         if (clickShortcutAction("R")) e.preventDefault();
         return;
@@ -136,6 +213,16 @@ export function KeyboardShortcutsHost() {
 
       if (e.key.toLowerCase() === "a") {
         if (clickShortcutAction("A")) e.preventDefault();
+        return;
+      }
+
+      if (e.key.toLowerCase() === "m") {
+        if (clickShortcutAction("M")) e.preventDefault();
+        return;
+      }
+
+      if (e.key.toLowerCase() === "x") {
+        if (clickShortcutAction("X")) e.preventDefault();
         return;
       }
 
@@ -240,8 +327,8 @@ export function KeyboardShortcutsHost() {
           </tbody>
         </table>
         <p className="mt-3 text-xs text-[var(--muted)]">
-          Press <kbd className="font-mono">?</kbd> or use header{" "}
-          <strong>Shortcuts</strong>. CTAs show their key on the button.
+          Action buttons always show their key — including when disabled.
+          Press <kbd className="font-mono">?</kbd> or use header Shortcuts.
         </p>
       </div>
     </div>

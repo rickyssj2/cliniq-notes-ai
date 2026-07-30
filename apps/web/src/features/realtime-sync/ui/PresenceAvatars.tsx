@@ -1,4 +1,5 @@
 import type { PresenceViewer } from "@entities/note";
+import { ActorAvatar } from "@entities/user";
 import { cn } from "@shared/lib";
 
 type Props = {
@@ -8,13 +9,6 @@ type Props = {
   max?: number;
   className?: string;
 };
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  const a = parts[0]?.[0] ?? "?";
-  const b = parts[1]?.[0] ?? parts[0]?.[1] ?? "";
-  return (a + b).toUpperCase();
-}
 
 export function PresenceAvatars({
   viewers,
@@ -36,13 +30,7 @@ export function PresenceAvatars({
       title={unique.map((v) => v.displayName).join(", ")}
     >
       {shown.map((v) => (
-        <span
-          key={v.id}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white bg-teal-700 text-[9px] font-semibold text-white"
-          aria-label={v.displayName}
-        >
-          {initials(v.displayName)}
-        </span>
+        <ActorAvatar key={v.id} user={v} size="sm" />
       ))}
       {overflow > 0 && (
         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white bg-stone-500 text-[9px] font-semibold text-white">

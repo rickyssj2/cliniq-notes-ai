@@ -4,6 +4,8 @@ Goal: understand every architecture doc in `docs/` well enough to **defend trade
 
 **How to use:** follow blocks in order. Each block: **consume → map to this repo → teach-back (speak aloud 2–3 min)**. Skip anything you can already explain cold.
 
+**Diagrams:** docs `01`–`08` each have **LucidChart-style PNG**, **ASCII blocks**, and optional **Mermaid** — use whichever clicks for you.
+
 **Budget:** ~9 hours total (±1h). Hard stop when the day ends — revisit flashcards tomorrow, don’t expand scope.
 
 ---

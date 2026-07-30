@@ -6,7 +6,7 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 
 - [x] Phase 0 — Scaffold & contracts
 - [x] Phase 1 — Domain state machine
-- [x] Phase 2 — Dummy backend (+ API Lab UI at `/lab`)
+- [x] Phase 2 — Dummy backend (API Lab removed; Demo FAB for fail-next / conflict)
 - [x] Phase 3 — Auth shell + Query plumbing
 - [x] Phase 4 — Virtualized notes list
 - [x] Phase 5 — Note detail + SOAP editor
@@ -21,21 +21,18 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 
 ## Try in UI
 
-### Phase 2 — API Lab
+### Phase 2 — Backend demos (Demo FAB)
 
-1. Run `pnpm dev`, open [http://localhost:5173/lab](http://localhost:5173/lab)
-2. Click **Seed** (e.g. 500), then **List notes**
-3. **Connect WS**, then **Pick READY note** (or click a row)
-4. **Start review** → **Save version** → **Force 409 conflict** → **Approve** or **Reject**
-5. Watch the event log for HTTP results and live `note.*` WebSocket messages
-6. Toggle **Chaos** ON to feel latency / occasional 500s
+1. Run `pnpm dev`, open Notes (API auto-seeds 100k)
+2. Open a READY note → Start review → edit → Demo (**D**) Force conflict / Fail next as needed
+3. Press **T** for the telemetry panel
 
 ### Phase 3 — Roles & guards
 
-1. Open [http://localhost:5173](http://localhost:5173) — use **Act as** in the header to switch roles
-2. As **Auditor Lee**: Notes works. Admin / API Lab show **Permission denied**. Nav items are struck through with hover reasons. On Notes, bulk actions are disabled with a reason tooltip
-3. As **Dr. A (REVIEWER)**: Notes + Lab open; Admin stays denied; bulk assign enables
-4. As **Admin Kim**: Admin + Lab all open
+1. Open [http://localhost:5173](http://localhost:5173) — use the header **avatar** to switch roles
+2. As **Auditor Lee**: Notes works. Admin shows **Permission denied**. Nav items are struck through with hover reasons. On Notes, bulk actions are disabled with a reason tooltip
+3. As **Dr. A (REVIEWER)**: Notes open; Admin stays denied; bulk assign enables
+4. As **Admin Kim**: Admin opens
 5. Reload the page — the selected actor persists (Zustand + localStorage)
 
 ### Phase 4 — Virtualized list

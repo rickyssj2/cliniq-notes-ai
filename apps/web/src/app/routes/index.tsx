@@ -2,7 +2,6 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import type { ReactNode } from "react";
 import { AppShell } from "@widgets/app-shell";
-import { RequireCapability } from "@entities/user";
 import { PageFallback } from "@shared/ui/page-fallback";
 
 const HomePage = lazy(() =>
@@ -16,9 +15,6 @@ const NoteDetailPage = lazy(() =>
 );
 const AdminPage = lazy(() =>
   import("@pages/admin").then((m) => ({ default: m.AdminPage })),
-);
-const ApiLabPage = lazy(() =>
-  import("@pages/api-lab").then((m) => ({ default: m.ApiLabPage })),
 );
 
 function LazyPage({ children }: { children: ReactNode }) {
@@ -59,16 +55,6 @@ export function AppRouter() {
             <LazyPage>
               <AdminPage />
             </LazyPage>
-          }
-        />
-        <Route
-          path="/lab"
-          element={
-            <RequireCapability capability="access_api_lab">
-              <LazyPage>
-                <ApiLabPage />
-              </LazyPage>
-            </RequireCapability>
           }
         />
       </Route>

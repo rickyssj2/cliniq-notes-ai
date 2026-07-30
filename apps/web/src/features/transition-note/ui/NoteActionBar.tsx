@@ -26,6 +26,7 @@ import {
 import { log } from "@shared/logging";
 import { track } from "@shared/telemetry";
 import { Button } from "@shared/ui/button";
+import { cn } from "@shared/lib";
 
 const ACTION_LABEL: Record<NoteAction, string> = {
   "generation.complete": "Generation complete",
@@ -40,11 +41,19 @@ const ACTION_LABEL: Record<NoteAction, string> = {
   grace_expired: "Lock",
 };
 
-/** Primary (green) CTAs with keyboard shortcuts. */
-const PRIMARY_ACTIONS = new Set<NoteAction>(["start_review", "approve"]);
+/** Primary (green) CTAs. */
+const PRIMARY_ACTIONS = new Set<NoteAction>([
+  "start_review",
+  "approve",
+  "amend",
+]);
+const DANGER_ACTIONS = new Set<NoteAction>(["reject"]);
 const ACTION_SHORTCUT: Partial<Record<NoteAction, string>> = {
   start_review: "R",
   approve: "A",
+  amend: "M",
+  reject: "X",
+  return: "E",
 };
 
 type Props = {
@@ -60,6 +69,8 @@ export function NoteActionBar({ note }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [queueHint, setQueueHint] = useState<string | null>(null);
   const [pendingHere, setPendingHere] = useState(0);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -92,7 +103,10 @@ export function NoteActionBar({ note }: Props) {
     [actor.id, actor.role, note.approvedAt, note.assignedReviewer?.id, note.status],
   );
 
-  const applyOptimisticTransition = (to: NoteDetail["status"], action: NoteAction) => {
+  const applyOptimisticTransition = (
+    to: NoteDetail["status"],
+    action: NoteAction,
+  ) => {
     const at = new Date().toISOString();
     const nextAssigned =
       action === "start_review"
@@ -109,30 +123,25 @@ export function NoteActionBar({ note }: Props) {
       approvedAt: action === "approve" ? at : note.approvedAt,
     });
 
-    queryClient.setQueryData<NoteDetail>(notesQueryKeys.detail(note.id), (old) => {
-      if (!old) return old;
-      return {
-        ...old,
-        status: to,
-        assignedReviewer: nextAssigned,
-        updatedAt: at,
-        approvedAt: action === "approve" ? at : old.approvedAt,
-      };
-    });
+    queryClient.setQueryData<NoteDetail>(
+      notesQueryKeys.detail(note.id),
+      (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          status: to,
+          assignedReviewer: nextAssigned,
+          updatedAt: at,
+          approvedAt: action === "approve" ? at : old.approvedAt,
+        };
+      },
+    );
   };
 
-  const run = async (action: NoteAction) => {
+  const run = async (action: NoteAction, reason?: string) => {
     setError(null);
     setQueueHint(null);
-    let reason: string | undefined;
-    if (action === "reject") {
-      const entered = window.prompt("Rejection reason (required)");
-      if (!entered?.trim()) {
-        setError("A rejection reason is required");
-        return;
-      }
-      reason = entered.trim();
-    }
+
     if (action === "approve") {
       const ok = window.confirm(
         "Approve this note? (Mock MFA: confirm stands in for re-auth.)",
@@ -187,9 +196,14 @@ export function NoteActionBar({ note }: Props) {
             clientMutationId,
           });
           patchList(result.note);
-          await queryClient.invalidateQueries({
-            queryKey: notesQueryKeys.detail(note.id),
-          });
+          await Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: notesQueryKeys.detail(note.id),
+            }),
+            queryClient.invalidateQueries({
+              queryKey: notesQueryKeys.lists(),
+            }),
+          ]);
           track(
             "note.transition",
             { noteId: note.id, action, to: target.to },
@@ -214,6 +228,25 @@ export function NoteActionBar({ note }: Props) {
     }
   };
 
+  const onActionClick = (action: NoteAction) => {
+    if (action === "reject") {
+      setRejectReason("");
+      setRejectOpen(true);
+      return;
+    }
+    void run(action);
+  };
+
+  const confirmReject = () => {
+    const trimmed = rejectReason.trim();
+    if (!trimmed) {
+      setError("A rejection reason is required");
+      return;
+    }
+    setRejectOpen(false);
+    void run("reject", trimmed);
+  };
+
   if (note.status === "LOCKED") {
     return (
       <div className="rounded-lg border border-[var(--border)] bg-stone-50 px-4 py-3 text-sm text-[var(--muted)]">
@@ -234,6 +267,7 @@ export function NoteActionBar({ note }: Props) {
         {actions.map((item) => {
           const shortcut = ACTION_SHORTCUT[item.action];
           const primary = PRIMARY_ACTIONS.has(item.action);
+          const danger = DANGER_ACTIONS.has(item.action);
           const label = ACTION_LABEL[item.action] ?? item.action;
           return (
             <span
@@ -243,18 +277,25 @@ export function NoteActionBar({ note }: Props) {
               <Button
                 type="button"
                 size="sm"
-                variant={primary ? "default" : "outline"}
+                variant={danger ? "danger" : primary ? "default" : "outline"}
                 disabled={!item.enabled || busy !== null}
                 data-shortcut-action={shortcut ?? undefined}
-                onClick={() => void run(item.action)}
+                onClick={() => onActionClick(item.action)}
               >
                 {busy === item.action ? (
                   "Working…"
                 ) : (
                   <>
                     {label}
-                    {shortcut && item.enabled ? (
-                      <kbd className="ml-1 rounded bg-black/10 px-1 py-0.5 font-mono text-[10px] opacity-90">
+                    {shortcut ? (
+                      <kbd
+                        className={cn(
+                          "ml-1.5 rounded px-1.5 py-0.5 font-mono text-[10px]",
+                          item.enabled
+                            ? "bg-black/10 opacity-90"
+                            : "bg-black/5 opacity-70",
+                        )}
+                      >
                         {shortcut}
                       </kbd>
                     ) : null}
@@ -270,10 +311,61 @@ export function NoteActionBar({ note }: Props) {
       )}
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
       <p className="text-xs text-[var(--muted)]">
-        Primary actions: <kbd className="font-mono">R</kbd> Start review ·{" "}
-        <kbd className="font-mono">A</kbd> Approve. Hover disabled buttons for
-        machine reasons.
+        <kbd className="font-mono">R</kbd> Start ·{" "}
+        <kbd className="font-mono">A</kbd> Approve ·{" "}
+        <kbd className="font-mono">M</kbd> Amend ·{" "}
+        <kbd className="font-mono">X</kbd> Reject ·{" "}
+        <kbd className="font-mono">E</kbd> Return to queue
       </p>
+
+      {rejectOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reject-title"
+          onClick={() => setRejectOpen(false)}
+        >
+          <div
+            className="w-full max-w-md space-y-3 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="reject-title" className="text-sm font-semibold">
+              Reject note
+            </h2>
+            <p className="text-xs text-[var(--muted)]">
+              A reason is required and becomes part of the review timeline.
+            </p>
+            <textarea
+              autoFocus
+              rows={4}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g. Missing plan section / incorrect assessment"
+              className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setRejectOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="danger"
+                disabled={!rejectReason.trim() || busy !== null}
+                onClick={confirmReject}
+              >
+                Confirm reject
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

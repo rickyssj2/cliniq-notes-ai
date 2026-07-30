@@ -1,24 +1,67 @@
-import { DEV_ACTORS, useActor, useSetActorById } from "@entities/user";
+import { useEffect, useRef, useState } from "react";
+import { DEV_ACTORS, useActor, useSetActorById, ActorAvatar } from "@entities/user";
 
+/** Avatar menu — pick who to “Act as” without dumping name/role in the chrome. */
 export function RoleSwitcher() {
   const actor = useActor();
   const setActorById = useSetActorById();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
 
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <span className="text-[var(--muted)]">Act as</span>
-      <select
-        value={actor.id}
-        onChange={(e) => setActorById(e.target.value)}
-        className="rounded-md border border-[var(--border)] bg-white px-2 py-1.5 text-sm"
-        aria-label="Switch active role"
+    <div className="relative" ref={rootRef}>
+      <button
+        type="button"
+        className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        aria-label={`Act as ${actor.displayName} (${actor.role}). Change actor`}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((v) => !v)}
       >
-        {DEV_ACTORS.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.displayName} ({a.role})
-          </option>
-        ))}
-      </select>
-    </label>
+        <ActorAvatar user={actor} size="md" />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label="Switch active actor"
+          className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)] py-1 shadow-lg"
+        >
+          {DEV_ACTORS.map((a) => {
+            const selected = a.id === actor.id;
+            return (
+              <li key={a.id} role="option" aria-selected={selected}>
+                <button
+                  type="button"
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-stone-100 ${
+                    selected ? "bg-teal-50" : ""
+                  }`}
+                  onClick={() => {
+                    setActorById(a.id);
+                    setOpen(false);
+                  }}
+                >
+                  <ActorAvatar user={a} size="sm" />
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="block font-medium">{a.displayName}</span>
+                    <span className="block text-xs text-[var(--muted)]">
+                      {a.role}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }

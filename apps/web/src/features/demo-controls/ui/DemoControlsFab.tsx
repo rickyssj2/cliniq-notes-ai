@@ -7,7 +7,8 @@ import {
 
 /**
  * Floating demo toolbar (DEV). Toggle with `D` or the FAB button.
- * Page-scoped actions register via `useDemoControlsStore.register`.
+ * Page-scoped actions (force conflict, fail-next, throws) register via the store.
+ * Dataset size comes from API auto-seed (100k); no in-UI reseed.
  */
 export function DemoControlsFab() {
   const open = useDemoControlsStore((s) => s.open);
@@ -36,10 +37,11 @@ export function DemoControlsFab() {
               D
             </kbd>
           </div>
+
           {controls.length === 0 ? (
             <p className="text-[var(--muted)]">
-              No demo actions on this page. Open a note for conflict / fail-next
-              / boundary throws.
+              Open a note for conflict / fail-next / boundary throws. Dataset is
+              the API auto-seed (100k).
             </p>
           ) : (
             <div className="flex flex-col gap-1.5">
@@ -57,12 +59,12 @@ export function DemoControlsFab() {
               ))}
             </div>
           )}
-          {message && (
-            <p className="text-[var(--muted)]">{message}</p>
-          )}
+
+          {message && <p className="text-[var(--muted)]">{message}</p>}
           <p className="text-[10px] text-[var(--muted)]">
-            DevTools → Network → Offline still works for queue demos. Press{" "}
-            <kbd className="font-mono">D</kbd> to hide.
+            DevTools → Network → Offline for queue demos. Press{" "}
+            <kbd className="font-mono">D</kbd> to hide ·{" "}
+            <kbd className="font-mono">T</kbd> telemetry.
           </p>
         </div>
       )}
