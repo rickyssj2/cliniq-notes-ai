@@ -122,6 +122,8 @@ export class NoteStore {
   private listeners = new Set<Listener>();
   private eventSeq = 0;
   private seededWith: { count: number; seed: number } | null = null;
+  /** Mock AI generation jobs: FAILED → GENERATING → (delay) READY_FOR_REVIEW. */
+  private generationTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -159,6 +161,8 @@ export class NoteStore {
   }
 
   seed(count: number, seed = DEFAULT_SEED) {
+    for (const t of this.generationTimers.values()) clearTimeout(t);
+    this.generationTimers.clear();
     this.users.clear();
     this.notes.clear();
     this.versions.clear();
@@ -733,7 +737,75 @@ export class NoteStore {
       ...(opts?.correlationId ? { correlationId: opts.correlationId } : {}),
     });
 
+    // Mock AI: after regenerate → GENERATING, finish to READY after 5–15s.
+    if (action === "regenerate" && result.to === "GENERATING") {
+      this.scheduleGenerationComplete(noteId);
+    }
+
     return { status: 200, body: response };
+  }
+
+  /**
+   * Simulate async AI generation: GENERATING → READY_FOR_REVIEW after a random delay.
+   * Emits the same status_changed WS event a real worker would.
+   */
+  scheduleGenerationComplete(noteId: string) {
+    const prev = this.generationTimers.get(noteId);
+    if (prev) clearTimeout(prev);
+    const delayMs = 5_000 + Math.floor(Math.random() * 10_001); // 5–15s
+    const timer = setTimeout(() => {
+      this.generationTimers.delete(noteId);
+      this.completeGeneration(noteId);
+    }, delayMs);
+    this.generationTimers.set(noteId, timer);
+  }
+
+  completeGeneration(noteId: string) {
+    const note = this.notes.get(noteId);
+    if (!note || note.status !== "GENERATING") return;
+
+    const now = new Date().toISOString();
+    const result = can("generation.complete", {
+      status: note.status,
+      assignedReviewerId: note.assignedReviewerId,
+      approvedAt: note.approvedAt,
+      now,
+      actor: null,
+      source: "server",
+    });
+    if (!result.ok) return;
+
+    const fromStatus = note.status;
+    note.status = result.to;
+    note.updatedAt = now;
+
+    const reviewEvent: StoredReviewEvent = {
+      id: `evt_${noteId}_gen_${Date.now().toString(36)}`,
+      noteId,
+      versionId: note.currentVersionId,
+      fromStatus,
+      toStatus: result.to,
+      actorId: "system",
+      actorRole: "ADMIN",
+      occurredAt: now,
+    };
+    const list = this.eventsByNote.get(noteId) ?? [];
+    list.push(reviewEvent);
+    this.eventsByNote.set(noteId, list);
+
+    this.emit({
+      type: "note.status_changed",
+      noteId,
+      fromStatus,
+      toStatus: result.to,
+      actor: {
+        id: "system",
+        displayName: "AI Generator",
+        role: "ADMIN",
+      },
+      at: now,
+      eventId: reviewEvent.id,
+    });
   }
 
   setPresence(

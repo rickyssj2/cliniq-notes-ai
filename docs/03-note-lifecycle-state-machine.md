@@ -40,7 +40,7 @@ Pick the diagram style you prefer (image / ASCII / Mermaid).
 | `return` | Assigned reviewer or `ADMIN` |
 | `amend` | CLINICIAN/ADMIN + within 24h grace |
 | `resubmit` | CLINICIAN or `ADMIN` |
-| `grace_expired` | Auto lock after grace |
+| `regenerate` | CLINICIAN / ADMIN from `FAILED` → `GENERATING` (API then mock-completes to READY in 5–15s) |
 
 UI contract: **`getAvailableActions`** drives buttons — no hardcoded status `if` trees for “what can I click.”
 

@@ -7,3 +7,8 @@ export type {
 } from "./types";
 export { isRealtimeEvent } from "./types";
 export { RealtimeClient, realtimeClient } from "./client";
+export {
+  trackPendingGeneration,
+  clearPendingGeneration,
+  clearAllPendingGeneration,
+} from "./pending-generation";

@@ -25,6 +25,7 @@ import {
 } from "@shared/correlation";
 import { log } from "@shared/logging";
 import { track } from "@shared/telemetry";
+import { trackPendingGeneration } from "@shared/realtime";
 import { Button } from "@shared/ui/button";
 import { cn } from "@shared/lib";
 
@@ -46,6 +47,7 @@ const PRIMARY_ACTIONS = new Set<NoteAction>([
   "start_review",
   "approve",
   "amend",
+  "regenerate",
 ]);
 const DANGER_ACTIONS = new Set<NoteAction>(["reject"]);
 const ACTION_SHORTCUT: Partial<Record<NoteAction, string>> = {
@@ -54,6 +56,7 @@ const ACTION_SHORTCUT: Partial<Record<NoteAction, string>> = {
   amend: "M",
   reject: "X",
   return: "E",
+  regenerate: "⇧G",
 };
 
 type Props = {
@@ -196,6 +199,9 @@ export function NoteActionBar({ note }: Props) {
             clientMutationId,
           });
           patchList(result.note);
+          if (action === "regenerate") {
+            trackPendingGeneration(note.id);
+          }
           await Promise.all([
             queryClient.invalidateQueries({
               queryKey: notesQueryKeys.detail(note.id),
@@ -279,7 +285,11 @@ export function NoteActionBar({ note }: Props) {
                 size="sm"
                 variant={danger ? "danger" : primary ? "default" : "outline"}
                 disabled={!item.enabled || busy !== null}
-                data-shortcut-action={shortcut ?? undefined}
+                data-shortcut-action={
+                  item.action === "regenerate"
+                    ? "G"
+                    : (shortcut ?? undefined)
+                }
                 onClick={() => onActionClick(item.action)}
               >
                 {busy === item.action ? (

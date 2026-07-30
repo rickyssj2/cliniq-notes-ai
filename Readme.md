@@ -242,6 +242,7 @@ Primary CTAs show their key on the button (green Start review / Approve / Amend;
 | `D` | Toggle demo controls FAB (dev) |
 | `T` | Toggle telemetry panel (dev) |
 | `R` / `A` / `M` / `X` / `E` | Start review / Approve / Amend / Reject / Return |
+| `⇧G` | Request regeneration (FAILED notes; bulk or detail) |
 | `⌃S/O/A/P` (Mac) · `Alt+S/O/A/P` (Win/Linux) | Focus SOAP section (UI shows your OS only) |
 | `⌘S` (Mac) · `Ctrl+S` (Win/Linux) | Save draft |
 | `/` | Focus notes search |

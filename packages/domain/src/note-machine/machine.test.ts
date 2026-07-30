@@ -77,10 +77,19 @@ describe("regenerate", () => {
   it("blocks REVIEWER regenerate", () => {
     const result = can(
       "regenerate",
-      base({ status: "FAILED", actor: actor("u1", "REVIEWER") }),
+      base({ status: "FAILED", actor: actor("dr_a", "REVIEWER") }),
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/CLINICIAN or ADMIN/);
+  });
+
+  it("blocks READONLY_AUDITOR regenerate", () => {
+    const result = can(
+      "regenerate",
+      base({ status: "FAILED", actor: actor("u1", "READONLY_AUDITOR") }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/READONLY_AUDITOR/);
   });
 });
 

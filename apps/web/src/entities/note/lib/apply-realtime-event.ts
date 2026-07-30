@@ -11,6 +11,7 @@ import {
 } from "../model/editor-draft-store";
 import { useConflictStore } from "../model/conflict-store";
 import { usePresenceStore } from "../model/presence-store";
+import { clearPendingGeneration } from "@shared/realtime";
 
 const seenEventIds = new Set<string>();
 const SEEN_CAP = 2_000;
@@ -25,27 +26,52 @@ function rememberEventId(eventId: string): boolean {
   return true;
 }
 
-function patchNoteInLists(queryClient: QueryClient, patch: Partial<NoteSummary> & { id: string }) {
+function patchNoteInLists(
+  queryClient: QueryClient,
+  patch: Partial<NoteSummary> & { id: string },
+) {
   const queries = queryClient.getQueriesData<{
     pages: Array<{ items: NoteSummary[] }>;
     pageParams: unknown[];
   }>({ queryKey: notesQueryKeys.lists() });
 
+  const listsToInvalidate: unknown[][] = [];
+
   for (const [queryKey, old] of queries) {
     if (!old) continue;
     const params = queryKey[2] as NotesFilterState | undefined;
-    queryClient.setQueryData(queryKey, {
-      ...old,
-      pages: old.pages.map((page) => ({
-        ...page,
-        items: page.items.flatMap((item) => {
-          if (item.id !== patch.id) return [item];
-          const next = { ...item, ...patch };
-          if (params && !noteMatchesListFilters(next, params)) return [];
-          return [next];
-        }),
-      })),
-    });
+    let found = false;
+
+    const pages = old.pages.map((page) => ({
+      ...page,
+      items: page.items.flatMap((item) => {
+        if (item.id !== patch.id) return [item];
+        found = true;
+        const next = { ...item, ...patch };
+        if (params && !noteMatchesListFilters(next, params)) return [];
+        return [next];
+      }),
+    }));
+
+    if (found) {
+      queryClient.setQueryData(queryKey, { ...old, pages });
+      continue;
+    }
+
+    // Note isn't in this cached page set (e.g. left FAILED filter while
+    // GENERATING). If the new status would match this list, refetch it.
+    if (
+      patch.status &&
+      (!params ||
+        params.statuses.length === 0 ||
+        params.statuses.includes(patch.status))
+    ) {
+      listsToInvalidate.push(queryKey as unknown[]);
+    }
+  }
+
+  for (const queryKey of listsToInvalidate) {
+    void queryClient.invalidateQueries({ queryKey });
   }
 }
 
@@ -74,6 +100,10 @@ export function applyRealtimeEvent(
       return true;
     }
     case "note.status_changed": {
+      if (event.toStatus !== "GENERATING") {
+        clearPendingGeneration(event.noteId);
+      }
+
       const detailKey = notesQueryKeys.detail(event.noteId);
       const detail = queryClient.getQueryData<NoteDetail>(detailKey);
 

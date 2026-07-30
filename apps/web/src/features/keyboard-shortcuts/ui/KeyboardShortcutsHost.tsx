@@ -24,11 +24,16 @@ function shortcutsForPlatform(apple: boolean): ShortcutRow[] {
     { keys: "/", action: "Focus notes search", when: "Notes list" },
     { keys: "g then n", action: "Go to Notes" },
     { keys: "g then h", action: "Go to Home" },
-    { keys: "R", action: "Start review", when: "Note detail" },
+    { keys: "R", action: "Start review", when: "Note detail / bulk" },
     { keys: "A", action: "Approve", when: "Note detail" },
     { keys: "M", action: "Amend", when: "Note detail" },
     { keys: "X", action: "Reject (opens confirm)", when: "Note detail" },
     { keys: "E", action: "Return to queue", when: "Note detail" },
+    {
+      keys: "⇧G",
+      action: "Request regeneration",
+      when: "Note detail / bulk (FAILED)",
+    },
     {
       keys: apple ? "⌃S/O/A/P" : "Alt+S/O/A/P",
       action: "Focus SOAP section",
@@ -166,6 +171,12 @@ export function KeyboardShortcutsHost() {
           e.preventDefault();
           saveBtn.click();
         }
+        return;
+      }
+
+      // Regenerate (bulk / detail) — Shift+G so plain `g` stays the go-to chord.
+      if (e.key.toLowerCase() === "g" && e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+        if (clickShortcutAction("G")) e.preventDefault();
         return;
       }
 

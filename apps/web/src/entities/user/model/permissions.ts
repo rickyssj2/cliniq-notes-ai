@@ -5,7 +5,8 @@ export type Capability =
   | "access_admin"
   | "access_api_lab"
   | "mutate_workflow"
-  | "bulk_assign";
+  | "bulk_assign"
+  | "request_regeneration";
 
 export type AccessResult = { ok: true } | { ok: false; reason: string };
 
@@ -14,6 +15,7 @@ const ROLE_CAPS: Record<Role, readonly Capability[]> = {
     "view_notes",
     "access_api_lab",
     "mutate_workflow",
+    "request_regeneration",
   ],
   REVIEWER: [
     "view_notes",
@@ -27,6 +29,7 @@ const ROLE_CAPS: Record<Role, readonly Capability[]> = {
     "access_api_lab",
     "mutate_workflow",
     "bulk_assign",
+    "request_regeneration",
   ],
   READONLY_AUDITOR: ["view_notes"],
 };
@@ -37,6 +40,7 @@ const CAP_LABEL: Record<Capability, string> = {
   access_api_lab: "open the API lab",
   mutate_workflow: "change note workflow state",
   bulk_assign: "bulk-assign reviewers",
+  request_regeneration: "request note regeneration",
 };
 
 export function can(

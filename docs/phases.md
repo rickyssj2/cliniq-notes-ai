@@ -41,7 +41,7 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 2. Scroll the list — more pages load; footer shows loaded / matching counts
 3. Toggle status chips, search (debounced), reviewer, dates — URL updates; copy/paste the URL to deep-link
 4. Click column headers (Status / Updated / Created) to sort
-5. Select rows across scroll; use **Start review** / **Request regeneration** on the sticky bulk bar (as REVIEWER/ADMIN)
+5. Select rows across scroll; use **Start review** (REVIEWER/ADMIN) / **Request regeneration** (CLINICIAN/ADMIN, FAILED only) on the sticky bulk bar. Bar shows eligible counts; ineligible are skipped with a message. Regen runs in parallel → `GENERATING`, stays subscribed until mock AI finishes (~5–15s) → `READY_FOR_REVIEW` (list refreshes via Live WS). Shortcut **⇧G**.
 6. Clear filters vs search with no matches — empty workspace vs **no results** messaging differ
 7. Click a patient name → detail (or use `j`/`k`/`Enter`)
 
