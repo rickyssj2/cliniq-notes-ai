@@ -7,6 +7,7 @@ import {
   useEditorDraftStore,
 } from "@entities/note";
 import { useActor } from "@entities/user";
+import { useAutosavePreferenceStore } from "@features/autosave-note";
 import {
   mintCorrelationId,
   runWithCorrelationAsync,
@@ -19,12 +20,19 @@ import { ConflictMergeModal } from "./ConflictMergeModal";
 export function ConflictMergeHost() {
   const payload = useConflictStore((s) => s.open);
   const closeConflict = useConflictStore((s) => s.closeConflict);
+  const setAutosaveOn = useAutosavePreferenceStore((s) => s.setEnabled);
   const applyResolution = useEditorDraftStore((s) => s.applyResolution);
   const markClean = useEditorDraftStore((s) => s.markClean);
   const actor = useActor();
   const queryClient = useQueryClient();
 
   if (!payload) return null;
+
+  const onKeepEditing = () => {
+    // Pause autosave so a dirty draft does not immediately re-POST and reopen the modal.
+    setAutosaveOn(false);
+    closeConflict();
+  };
 
   const onResolve = async (
     sections: Record<SoapSection, string>,
@@ -76,7 +84,7 @@ export function ConflictMergeHost() {
     <ConflictMergeModal
       conflict={payload.conflict}
       yours={payload.yours}
-      onCancel={closeConflict}
+      onCancel={onKeepEditing}
       onResolve={(sections, baseVersionId) => {
         void onResolve(sections, baseVersionId);
       }}

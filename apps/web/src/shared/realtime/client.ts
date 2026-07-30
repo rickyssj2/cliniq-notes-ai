@@ -42,9 +42,16 @@ export class RealtimeClient {
     if (this.ws?.readyState === WebSocket.OPEN && user) {
       this.flushSubscriptions(true);
       if (this.presenceNoteId) {
-        this.sendPresenceJoin(this.presenceNoteId);
+        this.rejoinPresence();
       }
     }
+  }
+
+  /** Leave and re-join presence for the current note (e.g. after actor switch). */
+  rejoinPresence() {
+    if (!this.presenceNoteId || this.ws?.readyState !== WebSocket.OPEN) return;
+    this.send({ type: "presence.leave", noteId: this.presenceNoteId });
+    this.sendPresenceJoin(this.presenceNoteId);
   }
 
   /** Register a named set of note ids (e.g. "viewport", "detail"). */

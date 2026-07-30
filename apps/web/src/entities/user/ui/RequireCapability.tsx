@@ -28,16 +28,16 @@ export function RequireCapability({
   return (
     <section
       role="alert"
-      className="mx-auto max-w-xl space-y-3 rounded-lg border border-[var(--danger)]/30 bg-red-50 px-6 py-8"
+      className="mx-auto max-w-xl space-y-3 rounded-lg border border-(--danger)/30 bg-red-50 px-6 py-8"
     >
-      <p className="text-xs font-semibold tracking-[0.16em] text-[var(--danger)] uppercase">
+      <p className="text-xs font-semibold tracking-[0.16em] text-(--danger) uppercase">
         Permission denied
       </p>
-      <h1 className="text-2xl font-semibold text-[var(--foreground)]">
+      <h1 className="text-2xl font-semibold text-(--foreground)">
         You don’t have access to this area
       </h1>
-      <p className="text-sm text-[var(--muted)]">{access.reason}</p>
-      <p className="text-sm text-[var(--muted)]">
+      <p className="text-sm text-(--muted)">{access.reason}</p>
+      <p className="text-sm text-(--muted)">
         This is not an empty dataset — the route is gated by your role (
         <code>{role}</code>). Switch role in the header to continue.
       </p>

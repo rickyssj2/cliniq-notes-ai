@@ -32,7 +32,7 @@ export function RealtimeStatusBadge({ online }: Props) {
           ? "border-emerald-200 bg-emerald-50 text-emerald-900"
           : warn
             ? "border-amber-200 bg-amber-50 text-amber-900"
-            : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)]"
+            : "border-(--border) bg-(--card) text-(--muted)"
       }`}
       title="WebSocket connection"
     >

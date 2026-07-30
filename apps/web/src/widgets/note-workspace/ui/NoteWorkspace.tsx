@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 import type { NoteDetail } from "@soulside/domain";
-import { isContentReadOnly } from "@soulside/domain";
+import { canEditContent } from "@soulside/domain";
 import {
   isDraftDirty,
   setDevFailNext,
@@ -14,7 +14,7 @@ import {
 import { can as canCapability, useActor } from "@entities/user";
 import { SoapEditor } from "@features/edit-soap";
 import { NoteActionBar } from "@features/transition-note";
-import { useCoalescedAutosave } from "@features/autosave-note";
+import { useCoalescedAutosave, useAutosavePreferenceStore } from "@features/autosave-note";
 import {
   PresenceAvatars,
   useNotePresenceChannel,
@@ -33,7 +33,7 @@ import {
   DevThrowRenderButton,
   requestDevThrow,
 } from "@shared/ui/dev-throw-render-button";
-import { cn } from "@shared/lib";
+import { cn, saveModKeyLabel } from "@shared/lib";
 
 type Props = {
   note: NoteDetail;
@@ -63,9 +63,10 @@ export function NoteWorkspace({ note }: Props) {
   const viewers = usePresenceStore(
     (s) => s.byNoteId[note.id] ?? EMPTY_PRESENCE,
   );
-  const [autosaveOn, setAutosaveOn] = useState(true);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("none");
   const [failNextArmed, setFailNextArmed] = useState(false);
+  const autosaveOn = useAutosavePreferenceStore((s) => s.enabled);
+  const setAutosaveOn = useAutosavePreferenceStore((s) => s.setEnabled);
   const online = useEffectiveOnline();
   const pendingAll = usePendingMutationCount();
   const registerDemo = useDemoControlsStore((s) => s.register);
@@ -93,9 +94,18 @@ export function NoteWorkspace({ note }: Props) {
     });
   }, [hydrate, applyQueuedSnapshot, note.id, note.currentVersion.id]);
 
-  const readOnly =
-    isContentReadOnly(note.status) ||
-    !canCapability(actor.role, "mutate_workflow").ok;
+  const contentGate = canEditContent({
+    status: note.status,
+    assignedReviewerId: note.assignedReviewer?.id ?? null,
+    actor: { id: actor.id, role: actor.role },
+  });
+  const capabilityGate = canCapability(actor.role, "mutate_workflow");
+  const readOnly = !contentGate.ok || !capabilityGate.ok;
+  const readOnlyReason = !capabilityGate.ok
+    ? capabilityGate.reason
+    : !contentGate.ok
+      ? contentGate.reason
+      : null;
 
   const dirty = isDraftDirty(draft);
 
@@ -168,11 +178,7 @@ export function NoteWorkspace({ note }: Props) {
     failNextArmed,
   ]);
 
-  const modKey =
-    typeof navigator !== "undefined" &&
-    /Mac|iPhone|iPad/.test(navigator.platform)
-      ? "⌘"
-      : "Ctrl";
+  const modKey = saveModKeyLabel();
 
   return (
     <div className="mx-auto max-w-[90rem] px-4 py-6 sm:px-6">
@@ -211,7 +217,7 @@ export function NoteWorkspace({ note }: Props) {
         <aside
           className={cn(
             "xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:self-start",
-            "rounded-lg border border-[var(--border)] bg-[var(--card)] p-4",
+            "rounded-lg border border-(--border) bg-(--card) p-4",
             mobilePanel === "timeline" ? "block" : "hidden xl:block",
           )}
         >
@@ -226,14 +232,14 @@ export function NoteWorkspace({ note }: Props) {
             <div className="space-y-2">
               <Link
                 to={{ pathname: "/notes", search: location.search }}
-                className="text-sm text-[var(--accent)] underline-offset-4 hover:underline"
+                className="text-sm text-(--accent) underline-offset-4 hover:underline"
               >
                 ← Notes
               </Link>
               <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
                 {note.patient.displayName}
               </h1>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
+              <div className="flex flex-wrap items-center gap-3 text-sm text-(--muted)">
                 <NoteStatusBadge status={note.status} />
                 <PresenceAvatars viewers={viewers} excludeUserId={actor.id} />
                 <span>
@@ -253,7 +259,7 @@ export function NoteWorkspace({ note }: Props) {
 
             <div className="flex flex-col items-end gap-2">
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                <label className="flex items-center gap-2 text-xs text-(--muted)">
                   <input
                     type="checkbox"
                     checked={autosaveOn}
@@ -263,7 +269,7 @@ export function NoteWorkspace({ note }: Props) {
                       // Native checkboxes toggle on Space only; Enter is expected by many users.
                       if (e.key === "Enter" && !readOnly) {
                         e.preventDefault();
-                        setAutosaveOn((on) => !on);
+                        setAutosaveOn(!autosaveOn);
                       }
                     }}
                   />
@@ -287,9 +293,9 @@ export function NoteWorkspace({ note }: Props) {
                   </kbd>
                 </Button>
               </div>
-              <p className="text-xs text-[var(--muted)]">
+              <p className="text-xs text-(--muted)">
                 {readOnly
-                  ? "Read-only for this status/role"
+                  ? (readOnlyReason ?? "Read-only for this status/role")
                   : conflictOpen
                     ? "Resolve the conflict modal to continue"
                     : autosave.status === "saving"
@@ -307,7 +313,7 @@ export function NoteWorkspace({ note }: Props) {
                             : "No local changes"}
               </p>
               {autosave.lastError && autosave.status === "error" && (
-                <p className="max-w-sm text-right text-xs text-[var(--danger)]">
+                <p className="max-w-sm text-right text-xs text-(--danger)">
                   {autosave.lastError}
                 </p>
               )}
@@ -317,7 +323,7 @@ export function NoteWorkspace({ note }: Props) {
           <NoteActionBar note={note} />
 
           <AppErrorBoundary label="soap-editor" variant="panel">
-            <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+            <section className="rounded-lg border border-(--border) bg-(--card) p-4">
               <h2 className="mb-4 text-sm font-semibold tracking-wide uppercase">
                 SOAP
               </h2>
@@ -338,7 +344,7 @@ export function NoteWorkspace({ note }: Props) {
         <aside
           className={cn(
             "xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:self-start",
-            "rounded-lg border border-[var(--border)] bg-[var(--card)] p-4",
+            "rounded-lg border border-(--border) bg-(--card) p-4",
             mobilePanel === "history" ? "block" : "hidden xl:block",
           )}
         >

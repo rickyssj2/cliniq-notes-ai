@@ -42,7 +42,7 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
   };
 
   return (
-    <section className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+    <section className="space-y-4 rounded-lg border border-(--border) bg-(--card) p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold tracking-wide uppercase">Filters</h2>
         <Button type="button" size="sm" variant="ghost" onClick={handleClear}>
@@ -57,7 +57,7 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
           value={searchDraft}
           onChange={(e) => setSearchDraft(e.target.value)}
           placeholder="Debounced server search… (/ to focus)"
-          className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-md border border-(--border) bg-white px-3 py-2 text-sm"
         />
       </label>
 
@@ -73,8 +73,8 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
                 onClick={() => toggleStatus(status)}
                 className={`rounded-md border px-2 py-1 text-xs ${
                   on
-                    ? "border-[var(--accent)] bg-teal-50 text-teal-900"
-                    : "border-[var(--border)] bg-white text-[var(--muted)]"
+                    ? "border-(--accent) bg-teal-50 text-teal-900"
+                    : "border-(--border) bg-white text-(--muted)"
                 }`}
               >
                 {status}
@@ -90,7 +90,7 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
           <select
             value={filters.reviewerId}
             onChange={(e) => onChange({ reviewerId: e.target.value })}
-            className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-2 py-2 text-sm"
+            className="mt-1 w-full rounded-md border border-(--border) bg-white px-2 py-2 text-sm"
           >
             <option value="">Any</option>
             {reviewers.map((r) => (
@@ -107,7 +107,7 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
             value={filters.patientId}
             onChange={(e) => onChange({ patientId: e.target.value })}
             placeholder="pat_0001"
-            className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-md border border-(--border) bg-white px-3 py-2 text-sm"
           />
         </label>
 
@@ -123,7 +123,7 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
                   : "",
               })
             }
-            className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-md border border-(--border) bg-white px-3 py-2 text-sm"
           />
         </label>
 
@@ -139,7 +139,7 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
                   : "",
               })
             }
-            className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-md border border-(--border) bg-white px-3 py-2 text-sm"
           />
         </label>
       </div>

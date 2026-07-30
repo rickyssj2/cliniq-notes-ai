@@ -42,7 +42,7 @@ export function NotesListPage() {
     <main className="mx-auto max-w-6xl space-y-6 px-6 py-8 pb-28">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Notes</h1>
-        <p className="max-w-2xl text-sm text-[var(--muted)]">
+        <p className="max-w-2xl text-sm text-(--muted)">
           Virtualized list with viewport WebSocket subscriptions. Cached pages
           stay readable offline; edits queue to IndexedDB until you’re back.
         </p>

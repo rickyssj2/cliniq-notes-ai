@@ -249,7 +249,7 @@ export function NoteActionBar({ note }: Props) {
 
   if (note.status === "LOCKED") {
     return (
-      <div className="rounded-lg border border-[var(--border)] bg-stone-50 px-4 py-3 text-sm text-[var(--muted)]">
+      <div className="rounded-lg border border-(--border) bg-stone-50 px-4 py-3 text-sm text-(--muted)">
         This note is <strong>LOCKED</strong> after the 24h amendment grace
         window. Content is read-only; start a new clinical note if changes are
         required.
@@ -309,8 +309,8 @@ export function NoteActionBar({ note }: Props) {
       {queueHint && pendingHere > 0 && (
         <p className="text-sm text-amber-800">{queueHint}</p>
       )}
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-      <p className="text-xs text-[var(--muted)]">
+      {error && <p className="text-sm text-(--danger)">{error}</p>}
+      <p className="text-xs text-(--muted)">
         <kbd className="font-mono">R</kbd> Start ·{" "}
         <kbd className="font-mono">A</kbd> Approve ·{" "}
         <kbd className="font-mono">M</kbd> Amend ·{" "}
@@ -327,13 +327,13 @@ export function NoteActionBar({ note }: Props) {
           onClick={() => setRejectOpen(false)}
         >
           <div
-            className="w-full max-w-md space-y-3 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl"
+            className="w-full max-w-md space-y-3 rounded-lg border border-(--border) bg-(--card) p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="reject-title" className="text-sm font-semibold">
               Reject note
             </h2>
-            <p className="text-xs text-[var(--muted)]">
+            <p className="text-xs text-(--muted)">
               A reason is required and becomes part of the review timeline.
             </p>
             <textarea
@@ -342,7 +342,7 @@ export function NoteActionBar({ note }: Props) {
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="e.g. Missing plan section / incorrect assessment"
-              className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-md border border-(--border) bg-white px-3 py-2 text-sm"
             />
             <div className="flex justify-end gap-2">
               <Button

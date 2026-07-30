@@ -98,7 +98,7 @@ export function BulkActionsBar({ notesById }: Props) {
   };
 
   return (
-    <div className="sticky bottom-4 z-10 mx-auto flex max-w-6xl flex-wrap items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-3 shadow-md">
+    <div className="sticky bottom-4 z-10 mx-auto flex max-w-6xl flex-wrap items-center gap-3 rounded-lg border border-(--border) bg-(--card) px-4 py-3 shadow-md">
       <p className="text-sm font-medium">{selectedIds.size} selected</p>
       <GuardedButton
         type="button"
@@ -122,7 +122,7 @@ export function BulkActionsBar({ notesById }: Props) {
       <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={clear}>
         Clear selection
       </Button>
-      {message && <p className="text-xs text-[var(--muted)]">{message}</p>}
+      {message && <p className="text-xs text-(--muted)">{message}</p>}
     </div>
   );
 }

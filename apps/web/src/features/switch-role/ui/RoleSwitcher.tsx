@@ -21,7 +21,7 @@ export function RoleSwitcher() {
     <div className="relative" ref={rootRef}>
       <button
         type="button"
-        className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
         aria-label={`Act as ${actor.displayName} (${actor.role}). Change actor`}
         aria-expanded={open}
         aria-haspopup="listbox"
@@ -33,7 +33,7 @@ export function RoleSwitcher() {
         <ul
           role="listbox"
           aria-label="Switch active actor"
-          className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)] py-1 shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-lg border border-(--border) bg-(--card) py-1 shadow-lg"
         >
           {DEV_ACTORS.map((a) => {
             const selected = a.id === actor.id;
@@ -52,7 +52,7 @@ export function RoleSwitcher() {
                   <ActorAvatar user={a} size="sm" />
                   <span className="min-w-0 flex-1 truncate">
                     <span className="block font-medium">{a.displayName}</span>
-                    <span className="block text-xs text-[var(--muted)]">
+                    <span className="block text-xs text-(--muted)">
                       {a.role}
                     </span>
                   </span>

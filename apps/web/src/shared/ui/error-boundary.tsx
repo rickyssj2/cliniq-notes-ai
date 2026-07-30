@@ -33,11 +33,11 @@ function PageFallback({
       role="alert"
       className="mx-auto max-w-lg space-y-4 px-6 py-16 text-center"
     >
-      <p className="text-sm font-medium tracking-[0.16em] text-[var(--muted)] uppercase">
+      <p className="text-sm font-medium tracking-[0.16em] text-(--muted) uppercase">
         Something went wrong · {label}
       </p>
       <h1 className="text-2xl font-semibold tracking-tight">This view crashed</h1>
-      <p className="text-sm text-[var(--muted)]">{errorText(error)}</p>
+      <p className="text-sm text-(--muted)">{errorText(error)}</p>
       <div className="flex flex-wrap justify-center gap-2">
         <Button type="button" size="sm" onClick={resetErrorBoundary}>
           Try again
@@ -65,12 +65,12 @@ function PanelFallback({
   return (
     <div
       role="alert"
-      className="space-y-3 rounded-lg border border-[var(--danger)]/40 bg-red-50/50 p-4"
+      className="space-y-3 rounded-lg border border-(--danger)/40 bg-red-50/50 p-4"
     >
-      <p className="text-sm font-semibold text-[var(--danger)]">
+      <p className="text-sm font-semibold text-(--danger)">
         {label} crashed
       </p>
-      <p className="text-xs text-[var(--muted)]">{errorText(error)}</p>
+      <p className="text-xs text-(--muted)">{errorText(error)}</p>
       <Button type="button" size="sm" variant="outline" onClick={resetErrorBoundary}>
         Try again
       </Button>

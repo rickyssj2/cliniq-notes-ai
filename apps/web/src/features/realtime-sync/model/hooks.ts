@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useActor } from "@entities/user";
-import { applyRealtimeEvent } from "@entities/note";
+import { applyRealtimeEvent, usePresenceStore } from "@entities/note";
 import {
   isRealtimeEvent,
   realtimeClient,
@@ -15,6 +15,7 @@ export function useRealtimeBootstrap() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    usePresenceStore.getState().clearAll();
     realtimeClient.setUser({
       id: actor.id,
       displayName: actor.displayName,
@@ -61,9 +62,17 @@ export function useRealtimeNoteSource(sourceId: string, noteIds: string[]) {
 
 /** Join presence for the open note detail. */
 export function useNotePresenceChannel(noteId: string | undefined) {
+  const actor = useActor();
+
   useEffect(() => {
     if (!noteId) return;
     realtimeClient.setPresenceNote(noteId);
     return () => realtimeClient.setPresenceNote(null);
   }, [noteId]);
+
+  // Re-join when actor changes while the same note stays open.
+  useEffect(() => {
+    if (!noteId) return;
+    realtimeClient.rejoinPresence();
+  }, [noteId, actor.id]);
 }

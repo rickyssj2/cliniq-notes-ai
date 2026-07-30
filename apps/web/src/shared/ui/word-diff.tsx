@@ -16,7 +16,7 @@ export function WordDiff({ before, after, mode }: Props) {
           return (
             <mark
               key={i}
-              className="rounded-sm bg-emerald-200/80 text-[var(--foreground)]"
+              className="rounded-sm bg-emerald-200/80 text-(--foreground)"
             >
               {part.value}
             </mark>
@@ -26,7 +26,7 @@ export function WordDiff({ before, after, mode }: Props) {
           return (
             <mark
               key={i}
-              className="rounded-sm bg-rose-200/80 text-[var(--foreground)] line-through"
+              className="rounded-sm bg-rose-200/80 text-(--foreground) line-through"
             >
               {part.value}
             </mark>

@@ -39,6 +39,13 @@ function isAssignedReviewer(ctx: MachineContext): string | null {
   return null;
 }
 
+/** ADMIN may override assignment guards (break-glass supervision). */
+function isAssignedReviewerOrAdmin(ctx: MachineContext): string | null {
+  if (!ctx.actor) return "An authenticated actor is required";
+  if (ctx.actor.role === "ADMIN") return null;
+  return isAssignedReviewer(ctx);
+}
+
 function withinAmendGrace(ctx: MachineContext): string | null {
   if (!ctx.approvedAt) {
     return "Approval timestamp is missing; cannot amend";
@@ -85,7 +92,7 @@ export const TRANSITIONS: readonly TransitionDef[] = [
     from: "READY_FOR_REVIEW",
     to: "IN_REVIEW",
     kind: "user",
-    guard: (ctx) => roleIn(ctx.actor, ["REVIEWER"]),
+    guard: (ctx) => roleIn(ctx.actor, ["REVIEWER", "ADMIN"]),
     effects: (ctx) => [
       { type: "assign_reviewer", reviewerId: ctx.actor!.id },
     ],
@@ -95,7 +102,7 @@ export const TRANSITIONS: readonly TransitionDef[] = [
     from: "IN_REVIEW",
     to: "READY_FOR_REVIEW",
     kind: "user",
-    guard: (ctx) => isAssignedReviewer(ctx),
+    guard: (ctx) => isAssignedReviewerOrAdmin(ctx),
     effects: () => [{ type: "release_reviewer" }],
   },
   {
@@ -104,6 +111,8 @@ export const TRANSITIONS: readonly TransitionDef[] = [
     to: "APPROVED",
     kind: "user",
     guard: (ctx) => {
+      if (!ctx.actor) return "An authenticated actor is required";
+      if (ctx.actor.role === "ADMIN") return null;
       const assigned = isAssignedReviewer(ctx);
       if (assigned) return assigned;
       if (ctx.source !== "server" && !ctx.mfaVerified) {
@@ -122,8 +131,8 @@ export const TRANSITIONS: readonly TransitionDef[] = [
     to: "REJECTED",
     kind: "user",
     guard: (ctx) => {
-      const assigned = isAssignedReviewer(ctx);
-      if (assigned) return assigned;
+      const access = isAssignedReviewerOrAdmin(ctx);
+      if (access) return access;
       if (!ctx.reason?.trim()) {
         return "A rejection reason is required";
       }
@@ -136,7 +145,7 @@ export const TRANSITIONS: readonly TransitionDef[] = [
     from: "REJECTED",
     to: "READY_FOR_REVIEW",
     kind: "user",
-    guard: (ctx) => roleIn(ctx.actor, ["CLINICIAN"]),
+    guard: (ctx) => roleIn(ctx.actor, ["CLINICIAN", "ADMIN"]),
     effects: () => [{ type: "require_new_version" }],
   },
   {
@@ -181,7 +190,7 @@ export const TRANSITIONS: readonly TransitionDef[] = [
     from: "AMENDED",
     to: "IN_REVIEW",
     kind: "user",
-    guard: (ctx) => roleIn(ctx.actor, ["REVIEWER"]),
+    guard: (ctx) => roleIn(ctx.actor, ["REVIEWER", "ADMIN"]),
     effects: (ctx) => [
       { type: "assign_reviewer", reviewerId: ctx.actor!.id },
     ],

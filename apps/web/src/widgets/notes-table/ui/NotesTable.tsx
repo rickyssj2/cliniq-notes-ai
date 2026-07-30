@@ -51,7 +51,7 @@ function SortHeader({
       type="button"
       onClick={() => onToggle(field)}
       className={cn(
-        "text-left text-xs font-semibold tracking-wide text-[var(--muted)] uppercase",
+        "text-left text-xs font-semibold tracking-wide text-(--muted) uppercase",
         className,
       )}
     >
@@ -115,7 +115,7 @@ export function NotesTable({
 
   if (emptyMode === "loading" || (isLoading && notes.length === 0)) {
     return (
-      <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+      <div className="space-y-2 rounded-lg border border-(--border) bg-(--card) p-4">
         {Array.from({ length: 8 }).map((_, i) => (
           <div
             key={i}
@@ -128,9 +128,9 @@ export function NotesTable({
 
   if (emptyMode === "empty") {
     return (
-      <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--card)] px-6 py-16 text-center">
+      <div className="rounded-lg border border-dashed border-(--border) bg-(--card) px-6 py-16 text-center">
         <p className="font-medium">No notes in the workspace yet</p>
-        <p className="mt-2 text-sm text-[var(--muted)]">
+        <p className="mt-2 text-sm text-(--muted)">
           Empty dataset — restart the API (auto-seeds 100k) or set{" "}
           <code>SEED_COUNT</code>, then come back.
         </p>
@@ -152,9 +152,9 @@ export function NotesTable({
 
   if (emptyMode === "no-results") {
     return (
-      <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--card)] px-6 py-16 text-center">
+      <div className="rounded-lg border border-dashed border-(--border) bg-(--card) px-6 py-16 text-center">
         <p className="font-medium">No notes match these filters</p>
-        <p className="mt-2 text-sm text-[var(--muted)]">
+        <p className="mt-2 text-sm text-(--muted)">
           Distinct from an empty workspace — try clearing filters or search.
         </p>
       </div>
@@ -162,8 +162,8 @@ export function NotesTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
-      <div className="grid grid-cols-[2.5rem_1.2fr_1fr_1fr_1fr_7rem] gap-2 border-b border-[var(--border)] bg-stone-50 px-3 py-2">
+    <div className="overflow-hidden rounded-lg border border-(--border) bg-(--card)">
+      <div className="grid grid-cols-[2.5rem_1.2fr_1fr_1fr_1fr_7rem] gap-2 border-b border-(--border) bg-stone-50 px-3 py-2">
         <label className="relative flex items-center justify-center">
           <span className="sr-only">Select all loaded notes</span>
           <input
@@ -177,7 +177,7 @@ export function NotesTable({
             }
           />
         </label>
-        <span className="text-xs font-semibold tracking-wide text-[var(--muted)] uppercase">
+        <span className="text-xs font-semibold tracking-wide text-(--muted) uppercase">
           Patient
         </span>
         <SortHeader
@@ -187,7 +187,7 @@ export function NotesTable({
           order={order}
           onToggle={onToggleSort}
         />
-        <span className="text-xs font-semibold tracking-wide text-[var(--muted)] uppercase">
+        <span className="text-xs font-semibold tracking-wide text-(--muted) uppercase">
           Reviewer
         </span>
         <SortHeader
@@ -219,7 +219,7 @@ export function NotesTable({
                 data-note-row
                 tabIndex={0}
                 className={cn(
-                  "absolute left-0 grid w-full grid-cols-[2.5rem_1.2fr_1fr_1fr_1fr_7rem] items-center gap-2 border-b border-[var(--border)]/70 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-inset",
+                  "absolute left-0 grid w-full grid-cols-[2.5rem_1.2fr_1fr_1fr_1fr_7rem] items-center gap-2 border-b border-(--border)/70 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-inset",
                   selected && "bg-teal-50/60",
                 )}
                 style={{
@@ -243,11 +243,11 @@ export function NotesTable({
                       pathname: `/notes/${note.id}`,
                       search: location.search,
                     }}
-                    className="block truncate font-medium text-[var(--foreground)] hover:text-[var(--accent)]"
+                    className="block truncate font-medium text-(--foreground) hover:text-(--accent)"
                   >
                     {note.patient.displayName}
                   </Link>
-                  <p className="truncate text-xs text-[var(--muted)]">{note.id}</p>
+                  <p className="truncate text-xs text-(--muted)">{note.id}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -259,13 +259,13 @@ export function NotesTable({
                     />
                   </div>
                 </div>
-                <p className="truncate text-[var(--muted)]">
+                <p className="truncate text-(--muted)">
                   {note.assignedReviewer?.displayName ?? "—"}
                 </p>
-                <p className="truncate text-xs text-[var(--muted)]">
+                <p className="truncate text-xs text-(--muted)">
                   {new Date(note.updatedAt).toLocaleString()}
                 </p>
-                <p className="truncate text-xs text-[var(--muted)]">
+                <p className="truncate text-xs text-(--muted)">
                   {new Date(note.createdAt).toLocaleDateString()}
                 </p>
               </div>
@@ -274,7 +274,7 @@ export function NotesTable({
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-t border-[var(--border)] px-3 py-2 text-xs text-[var(--muted)]">
+      <div className="flex items-center justify-between border-t border-(--border) px-3 py-2 text-xs text-(--muted)">
         <span>
           Showing {notes.length} loaded / {total} matching
         </span>

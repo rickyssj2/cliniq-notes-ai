@@ -94,30 +94,30 @@ export function ReviewTimeline({ note, variant = "page" }: Props) {
       className={
         sidebar
           ? "flex h-full min-h-0 flex-col gap-3"
-          : "space-y-3 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4"
+          : "space-y-3 rounded-lg border border-(--border) bg-(--card) p-4"
       }
     >
       <div className={sidebar ? "shrink-0" : undefined}>
         <h2 className="text-sm font-semibold tracking-wide uppercase">
           Review timeline
         </h2>
-        <p className="mt-1 text-xs text-[var(--muted)]">
+        <p className="mt-1 text-xs text-(--muted)">
           Event log projection. Offline queue items show until sync.
         </p>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">No review events yet.</p>
+        <p className="text-sm text-(--muted)">No review events yet.</p>
       ) : (
         <ol
-          className={`relative space-y-0 border-l border-[var(--border)] pl-4 ${
+          className={`relative space-y-0 border-l border-(--border) pl-4 ${
             sidebar ? "min-h-0 flex-1 overflow-auto" : ""
           }`}
         >
           {rows.map((row) => (
             <li key={row.id} className="relative pb-4 last:pb-0">
               <span
-                className={`absolute -left-[1.15rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--card)] ${
+                className={`absolute -left-[1.15rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-(--card) ${
                   row.kind === "pending"
                     ? "bg-amber-500"
                     : "bg-teal-700"
@@ -132,12 +132,12 @@ export function ReviewTimeline({ note, variant = "page" }: Props) {
                     </span>
                   )}
                 </p>
-                <time className="text-[11px] text-[var(--muted)]">
+                <time className="text-[11px] text-(--muted)">
                   {new Date(row.at).toLocaleString()}
                 </time>
               </div>
               {row.detail && (
-                <p className="mt-0.5 text-xs text-[var(--muted)]">{row.detail}</p>
+                <p className="mt-0.5 text-xs text-(--muted)">{row.detail}</p>
               )}
             </li>
           ))}

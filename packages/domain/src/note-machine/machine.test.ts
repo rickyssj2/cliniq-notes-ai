@@ -5,6 +5,7 @@ import {
   can,
   getAvailableActions,
   isContentReadOnly,
+  canEditContent,
   transition,
   TRANSITIONS,
   type MachineContext,
@@ -118,6 +119,21 @@ describe("start_review", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/REVIEWER/);
   });
+
+  it("allows ADMIN to start review and self-assign", () => {
+    const result = transition(
+      "start_review",
+      base({ status: "READY_FOR_REVIEW", actor: actor("adm", "ADMIN") }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.to).toBe("IN_REVIEW");
+      expect(result.effects).toContainEqual({
+        type: "assign_reviewer",
+        reviewerId: "adm",
+      });
+    }
+  });
 });
 
 describe("IN_REVIEW actions", () => {
@@ -184,6 +200,21 @@ describe("IN_REVIEW actions", () => {
     );
     expect(allowed).toMatchObject({ ok: true, to: "REJECTED" });
   });
+
+  it("ADMIN can return, approve, and reject without being assigned", () => {
+    const ctx = inReview({ actor: actor("adm", "ADMIN"), mfaVerified: false });
+    expect(transition("return", ctx)).toMatchObject({
+      ok: true,
+      to: "READY_FOR_REVIEW",
+    });
+    expect(transition("approve", ctx)).toMatchObject({
+      ok: true,
+      to: "APPROVED",
+    });
+    expect(
+      transition("reject", { ...ctx, reason: "admin override" }),
+    ).toMatchObject({ ok: true, to: "REJECTED" });
+  });
 });
 
 describe("resubmit", () => {
@@ -197,6 +228,14 @@ describe("resubmit", () => {
       expect(result.to).toBe("READY_FOR_REVIEW");
       expect(result.effects).toContainEqual({ type: "require_new_version" });
     }
+  });
+
+  it("ADMIN can resubmit REJECTED → READY_FOR_REVIEW", () => {
+    const result = transition(
+      "resubmit",
+      base({ status: "REJECTED", actor: actor("adm", "ADMIN") }),
+    );
+    expect(result).toMatchObject({ ok: true, to: "READY_FOR_REVIEW" });
   });
 
   it("REVIEWER cannot resubmit", () => {
@@ -310,6 +349,26 @@ describe("getAvailableActions", () => {
     }
   });
 
+  it("enables IN_REVIEW actions for ADMIN even when not assigned", () => {
+    const actions = getAvailableActions(
+      base({
+        status: "IN_REVIEW",
+        assignedReviewerId: "dr_a",
+        actor: actor("adm", "ADMIN"),
+        mfaVerified: false,
+        reason: "x",
+      }),
+    );
+
+    const byAction = Object.fromEntries(
+      actions.map((a) => [a.action, a]),
+    ) as Record<NoteAction, (typeof actions)[number]>;
+
+    expect(byAction.return?.enabled).toBe(true);
+    expect(byAction.approve?.enabled).toBe(true);
+    expect(byAction.reject?.enabled).toBe(true);
+  });
+
   it("READONLY_AUDITOR sees all user actions disabled", () => {
     const actions = getAvailableActions(
       base({
@@ -372,5 +431,89 @@ describe("isContentReadOnly", () => {
 
   it.each(cases)("%s → %s", (status, expected) => {
     expect(isContentReadOnly(status)).toBe(expected);
+  });
+});
+
+describe("canEditContent", () => {
+  const assigned = { id: "usr_rev_001", role: "REVIEWER" as const };
+  const otherReviewer = { id: "usr_rev_002", role: "REVIEWER" as const };
+  const admin = { id: "usr_adm_001", role: "ADMIN" as const };
+  const clinician = { id: "usr_clin_001", role: "CLINICIAN" as const };
+
+  it("allows assigned reviewer and admin while IN_REVIEW", () => {
+    expect(
+      canEditContent({
+        status: "IN_REVIEW",
+        assignedReviewerId: assigned.id,
+        actor: assigned,
+      }).ok,
+    ).toBe(true);
+    expect(
+      canEditContent({
+        status: "IN_REVIEW",
+        assignedReviewerId: assigned.id,
+        actor: admin,
+      }).ok,
+    ).toBe(true);
+    const blocked = canEditContent({
+      status: "IN_REVIEW",
+      assignedReviewerId: assigned.id,
+      actor: otherReviewer,
+    });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.reason).toMatch(/assigned reviewer or an admin/i);
+    }
+  });
+
+  it("blocks SOAP edits on READY_FOR_REVIEW until claimed", () => {
+    const result = canEditContent({
+      status: "READY_FOR_REVIEW",
+      assignedReviewerId: null,
+      actor: assigned,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/Start review/i);
+  });
+
+  it("allows clinician to edit REJECTED / AMENDED", () => {
+    expect(
+      canEditContent({
+        status: "REJECTED",
+        assignedReviewerId: null,
+        actor: clinician,
+      }).ok,
+    ).toBe(true);
+    expect(
+      canEditContent({
+        status: "AMENDED",
+        assignedReviewerId: null,
+        actor: clinician,
+      }).ok,
+    ).toBe(true);
+    expect(
+      canEditContent({
+        status: "REJECTED",
+        assignedReviewerId: null,
+        actor: assigned,
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("blocks APPROVED and FAILED content edits", () => {
+    expect(
+      canEditContent({
+        status: "APPROVED",
+        assignedReviewerId: null,
+        actor: clinician,
+      }).ok,
+    ).toBe(false);
+    expect(
+      canEditContent({
+        status: "FAILED",
+        assignedReviewerId: null,
+        actor: clinician,
+      }).ok,
+    ).toBe(false);
   });
 });

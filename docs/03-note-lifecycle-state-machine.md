@@ -34,13 +34,17 @@ Pick the diagram style you prefer (image / ASCII / Mermaid).
 
 | Action | Key guards |
 |---|---|
-| `start_review` | Role `REVIEWER`; assigns actor |
-| `approve` | Assigned reviewer; user path needs `mfaVerified` |
-| `reject` | Assigned + non-empty `reason` |
+| `start_review` | Role `REVIEWER` or `ADMIN`; assigns actor |
+| `approve` | Assigned reviewer (MFA) or `ADMIN` override |
+| `reject` | Assigned reviewer or `ADMIN`; non-empty `reason` |
+| `return` | Assigned reviewer or `ADMIN` |
 | `amend` | CLINICIAN/ADMIN + within 24h grace |
+| `resubmit` | CLINICIAN or `ADMIN` |
 | `grace_expired` | Auto lock after grace |
 
 UI contract: **`getAvailableActions`** drives buttons — no hardcoded status `if` trees for “what can I click.”
+
+**Content edit vs workflow:** SOAP edits use **`canEditContent`**. Workflow transitions use guards above. **`ADMIN`** has break-glass access to all user transitions (including approve without MFA and IN_REVIEW actions when not assigned). Other reviewers remain assignment-gated for approve/reject/return.
 
 ---
 

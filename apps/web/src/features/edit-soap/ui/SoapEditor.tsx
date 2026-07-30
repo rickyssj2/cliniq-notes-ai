@@ -1,17 +1,12 @@
 import type { SoapSection } from "@soulside/domain";
 import { useEditorDraftStore } from "@entities/note";
-import { cn } from "@shared/lib";
+import { cn, soapSectionShortcutHint } from "@shared/lib";
 
-const SECTIONS: Array<{
-  key: SoapSection;
-  label: string;
-  /** Chord shown in the label (platform-aware copy). */
-  shortcutHint: string;
-}> = [
-  { key: "S", label: "Subjective", shortcutHint: "⌃S / Alt+S" },
-  { key: "O", label: "Objective", shortcutHint: "⌃O / Alt+O" },
-  { key: "A", label: "Assessment", shortcutHint: "⌃A / Alt+A" },
-  { key: "P", label: "Plan", shortcutHint: "⌃P / Alt+P" },
+const SECTIONS: Array<{ key: SoapSection; label: string }> = [
+  { key: "S", label: "Subjective" },
+  { key: "O", label: "Objective" },
+  { key: "A", label: "Assessment" },
+  { key: "P", label: "Plan" },
 ];
 
 type Props = {
@@ -25,13 +20,13 @@ export function SoapEditor({ noteId, readOnly }: Props) {
 
   if (!draft) {
     return (
-      <p className="text-sm text-[var(--muted)]">Loading editor draft…</p>
+      <p className="text-sm text-(--muted)">Loading editor draft…</p>
     );
   }
 
   return (
     <div className="space-y-4">
-      {SECTIONS.map(({ key, label, shortcutHint }) => {
+      {SECTIONS.map(({ key, label }) => {
         const dirty = draft.dirty[key];
         return (
           <label key={key} className="block space-y-1.5">
@@ -40,8 +35,8 @@ export function SoapEditor({ noteId, readOnly }: Props) {
                 {key}
               </span>
               {label}
-              <kbd className="rounded border border-[var(--border)] bg-stone-50 px-1.5 py-0.5 font-mono text-[10px] font-normal text-[var(--muted)]">
-                {shortcutHint}
+              <kbd className="rounded border border-(--border) bg-stone-50 px-1.5 py-0.5 font-mono text-[10px] font-normal text-(--muted)">
+                {soapSectionShortcutHint(key)}
               </kbd>
               {dirty && (
                 <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-900 uppercase">
@@ -59,8 +54,8 @@ export function SoapEditor({ noteId, readOnly }: Props) {
               aria-label={label}
               onChange={(e) => setSection(noteId, key, e.target.value)}
               className={cn(
-                "w-full resize-y rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm leading-relaxed",
-                readOnly && "cursor-not-allowed bg-stone-50 text-[var(--muted)]",
+                "w-full resize-y rounded-md border border-(--border) bg-white px-3 py-2 text-sm leading-relaxed",
+                readOnly && "cursor-not-allowed bg-stone-50 text-(--muted)",
                 dirty && !readOnly && "border-amber-300",
               )}
             />

@@ -14,6 +14,7 @@ type PresenceState = {
   byNoteId: Record<string, PresenceViewer[]>;
   setViewers: (noteId: string, viewers: PresenceViewer[]) => void;
   clearNote: (noteId: string) => void;
+  clearAll: () => void;
 };
 
 function sameViewers(a: PresenceViewer[] | undefined, b: PresenceViewer[]) {
@@ -44,5 +45,9 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
     const next = { ...get().byNoteId };
     delete next[noteId];
     set({ byNoteId: next });
+  },
+  clearAll: () => {
+    if (Object.keys(get().byNoteId).length === 0) return;
+    set({ byNoteId: {} });
   },
 }));

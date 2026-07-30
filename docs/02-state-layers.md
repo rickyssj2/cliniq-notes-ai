@@ -45,6 +45,8 @@ Pick the diagram style you prefer (image / ASCII / Mermaid).
 | Pending offline save | Dexie `mutationQueue` | Survives reload |
 | Parked telemetry | Dexie `telemetryPark` | Survive failed flushes |
 | Legal transitions | `noteMachine` | Single source of truth |
+| SOAP edit eligibility | `canEditContent` | Assigned reviewer + ADMIN in `IN_REVIEW`; clinician on reject/amend |
+| Workflow transitions | `noteMachine` guards | ADMIN: all user actions; reviewers: assignment-gated in `IN_REVIEW` |
 
 ---
 

@@ -69,8 +69,9 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 1. Open `/notes` — header badge should read **Live**
 2. Open the same `IN_REVIEW` note in two browser tabs (optionally different actors via **Act as**)
 3. In tab A, transition / edit+save — tab B list status chip and detail update without refresh; presence avatars appear
-4. In tab A, edit SOAP and leave dirty; in tab B save a different edit — tab A opens the three-way conflict merge UI
-5. Kill the API briefly — badge shows **Reconnecting…**, then **Live**; missed events replay via `lastEventId`
+4. Switch **Act as** on an open note — old actor’s presence avatar clears; new actor re-joins
+5. In tab A, edit SOAP and leave dirty; in tab B save a different edit — tab A opens the three-way conflict merge UI (same assignee, admin+assignee, or Demo force-conflict)
+6. Kill the API briefly — badge shows **Reconnecting…**, then **Live**; missed events replay via `lastEventId`
 
 ### Phase 8 — Offline queue
 
@@ -93,7 +94,7 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 1. Bottom-right **Telemetry** (dev only) — open panel; counts for buffered / flushed / parked
 2. **Emit sample** — Network → `POST /api/telemetry/batch`; body has `content`/`S` as `[redacted]`
 3. Edit SOAP / run a transition — events batch (~4s or 20 events); **Flush now** to force send
-4. **Fail ×3 + flush** — after 3 injected 500s the batch parks in IndexedDB; **Flush now** or go online again replays (attempts reset)
+4. **Fail ×3** — arms 3 injected 500s on the next telemetry batches (parks in IndexedDB); flush manually via **Flush now** or go online again (attempts reset)
 5. Hard-refresh mid-buffer — `sendBeacon` / keepalive flush; parked rows survive reload
 
 ### Phase 11 — Sim & tests

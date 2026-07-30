@@ -81,14 +81,14 @@ export function NoteHistoryPanel({ note, variant = "page" }: Props) {
       className={
         sidebar
           ? "flex h-full min-h-0 flex-col gap-3"
-          : "space-y-4 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4"
+          : "space-y-4 rounded-lg border border-(--border) bg-(--card) p-4"
       }
     >
       <div className={sidebar ? "shrink-0" : undefined}>
         <h2 className="text-sm font-semibold tracking-wide uppercase">
           Version history
         </h2>
-        <p className="mt-1 text-xs text-[var(--muted)]">
+        <p className="mt-1 text-xs text-(--muted)">
           Select two revisions to diff SOAP (word-level).
         </p>
       </div>
@@ -103,8 +103,8 @@ export function NoteHistoryPanel({ note, variant = "page" }: Props) {
         <ul
           className={
             sidebar
-              ? "max-h-48 shrink-0 space-y-1 overflow-auto rounded border border-[var(--border)] p-2"
-              : "max-h-72 space-y-1 overflow-auto rounded border border-[var(--border)] p-2"
+              ? "max-h-48 shrink-0 space-y-1 overflow-auto rounded border border-(--border) p-2"
+              : "max-h-72 space-y-1 overflow-auto rounded border border-(--border) p-2"
           }
         >
           {versions.map((v) => (
@@ -119,7 +119,7 @@ export function NoteHistoryPanel({ note, variant = "page" }: Props) {
             />
           ))}
           {versions.length === 0 && (
-            <li className="px-2 py-4 text-center text-xs text-[var(--muted)]">
+            <li className="px-2 py-4 text-center text-xs text-(--muted)">
               No versions yet
             </li>
           )}
@@ -133,7 +133,7 @@ export function NoteHistoryPanel({ note, variant = "page" }: Props) {
           }
         >
           {!ordered.base || !ordered.head ? (
-            <div className="flex h-full min-h-[6rem] items-center justify-center rounded border border-dashed border-[var(--border)] px-3 py-6 text-center text-xs text-[var(--muted)]">
+            <div className="flex h-full min-h-[6rem] items-center justify-center rounded border border-dashed border-(--border) px-3 py-6 text-center text-xs text-(--muted)">
               {leftId
                 ? "Pick a second revision"
                 : "Pick two revisions"}
@@ -144,13 +144,13 @@ export function NoteHistoryPanel({ note, variant = "page" }: Props) {
               <div className="h-24 rounded bg-stone-200" />
             </div>
           ) : baseQ.isError || headQ.isError || !baseQ.data || !headQ.data ? (
-            <p className="text-sm text-[var(--danger)]">
+            <p className="text-sm text-(--danger)">
               Couldn’t load version content
               {!navigator.onLine ? " (offline — open while online first)" : ""}.
             </p>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs text-[var(--muted)]">
+              <p className="text-xs text-(--muted)">
                 Rev {ordered.base.revision} → {ordered.head.revision}
                 {" · "}
                 <span className="text-rose-700">−</span>
@@ -162,7 +162,7 @@ export function NoteHistoryPanel({ note, variant = "page" }: Props) {
                   <p className="text-xs font-semibold tracking-wide uppercase">
                     {key} · {label}
                   </p>
-                  <div className="rounded border border-[var(--border)] bg-[var(--background)] p-2">
+                  <div className="rounded border border-(--border) bg-(--background) p-2">
                     <WordDiff
                       before={baseQ.data.content.sections[key]}
                       after={headQ.data.content.sections[key]}
@@ -213,10 +213,10 @@ function VersionRow({
             </span>
           )}
         </span>
-        <span className="truncate text-[var(--muted)]">
+        <span className="truncate text-(--muted)">
           {version.authoredBy.displayName}
         </span>
-        <span className="text-[10px] text-[var(--muted)]">
+        <span className="text-[10px] text-(--muted)">
           {new Date(version.createdAt).toLocaleString()}
         </span>
       </button>

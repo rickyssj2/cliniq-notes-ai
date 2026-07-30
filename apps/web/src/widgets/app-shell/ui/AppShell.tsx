@@ -26,10 +26,10 @@ const NAV: NavItem[] = [
 function navClass(isActive: boolean, allowed: boolean) {
   const base = "rounded-md px-3 py-1.5 text-sm transition-colors";
   if (!allowed)
-    return `${base} cursor-not-allowed text-[var(--muted)]/50 line-through`;
+    return `${base} cursor-not-allowed text-(--muted)/50 line-through`;
   if (isActive)
-    return `${base} bg-[var(--accent)] text-[var(--accent-foreground)]`;
-  return `${base} text-[var(--foreground)] hover:bg-black/5`;
+    return `${base} bg-(--accent) text-(--accent-foreground)`;
+  return `${base} text-(--foreground) hover:bg-black/5`;
 }
 
 export function AppShell() {
@@ -44,7 +44,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-(--border) bg-(--card)/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
           <p className="shrink-0 text-sm font-semibold tracking-tight">
             Soulside
@@ -85,14 +85,14 @@ export function AppShell() {
             <RealtimeStatusBadge online={online} />
             <button
               type="button"
-              className="hidden items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--muted)] hover:bg-black/5 hover:text-[var(--foreground)] sm:inline-flex"
+              className="hidden items-center gap-1 rounded-md px-2 py-1 text-xs text-(--muted) hover:bg-black/5 hover:text-(--foreground) sm:inline-flex"
               title="Keyboard shortcuts (?)"
               onClick={() =>
                 window.dispatchEvent(new Event(OPEN_SHORTCUTS_EVENT))
               }
             >
               Shortcuts
-              <kbd className="rounded border border-[var(--border)] bg-stone-50 px-1 py-0.5 font-mono text-[10px]">
+              <kbd className="rounded border border-(--border) bg-stone-50 px-1 py-0.5 font-mono text-[10px]">
                 ?
               </kbd>
             </button>
@@ -101,7 +101,7 @@ export function AppShell() {
             </div>
             <button
               type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-sm md:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-(--border) text-sm md:hidden"
               aria-expanded={menuOpen}
               aria-controls="mobile-nav"
               aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -115,7 +115,7 @@ export function AppShell() {
         <div
           id="mobile-nav"
           className={cn(
-            "border-t border-[var(--border)] bg-[var(--card)] px-4 py-3 md:hidden",
+            "border-t border-(--border) bg-(--card) px-4 py-3 md:hidden",
             menuOpen ? "block" : "hidden",
           )}
         >
@@ -146,16 +146,16 @@ export function AppShell() {
               );
             })}
           </nav>
-          <div className="mt-3 flex flex-col gap-3 border-t border-[var(--border)] pt-3 sm:hidden">
+          <div className="mt-3 flex flex-col gap-3 border-t border-(--border) pt-3 sm:hidden">
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[var(--muted)] hover:bg-black/5"
+              className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-(--muted) hover:bg-black/5"
               onClick={() =>
                 window.dispatchEvent(new Event(OPEN_SHORTCUTS_EVENT))
               }
             >
               Keyboard shortcuts
-              <kbd className="rounded border border-[var(--border)] bg-stone-50 px-1 py-0.5 font-mono text-[10px]">
+              <kbd className="rounded border border-(--border) bg-stone-50 px-1 py-0.5 font-mono text-[10px]">
                 ?
               </kbd>
             </button>
@@ -173,8 +173,8 @@ export function AppShell() {
           <Outlet />
         </AppErrorBoundary>
       </div>
-      <footer className="mt-auto border-t border-[var(--border)] bg-[var(--card)]/80">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <footer className="mt-auto border-t border-(--border) bg-(--card)/80">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-(--muted) sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>
             © {new Date().getFullYear()} Soulside AI — Clinical notes take-home
             demo. Not for production use.

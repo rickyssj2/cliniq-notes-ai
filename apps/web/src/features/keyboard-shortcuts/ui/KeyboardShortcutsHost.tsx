@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import type { SoapSection } from "@soulside/domain";
 import { useConflictStore } from "@entities/note";
+import { useAutosavePreferenceStore } from "@features/autosave-note";
 import { TOGGLE_DEMO_EVENT } from "@features/demo-controls";
 import { TOGGLE_TELEMETRY_EVENT } from "@features/telemetry-debug";
+import { isApplePlatform } from "@shared/lib";
 import { Button } from "@shared/ui/button";
 
 export const OPEN_SHORTCUTS_EVENT = "soulside:open-shortcuts";
@@ -14,33 +16,34 @@ type ShortcutRow = {
   when?: string;
 };
 
-const SHORTCUTS: ShortcutRow[] = [
-  { keys: "?", action: "Show this shortcuts help" },
-  { keys: "D", action: "Toggle demo controls FAB", when: "Dev" },
-  { keys: "T", action: "Toggle telemetry panel", when: "Dev" },
-  { keys: "/", action: "Focus notes search", when: "Notes list" },
-  { keys: "g then n", action: "Go to Notes" },
-  { keys: "g then h", action: "Go to Home" },
-  { keys: "R", action: "Start review", when: "Note detail" },
-  { keys: "A", action: "Approve", when: "Note detail" },
-  { keys: "M", action: "Amend", when: "Note detail" },
-  { keys: "X", action: "Reject (opens confirm)", when: "Note detail" },
-  { keys: "E", action: "Return to queue", when: "Note detail" },
-  {
-    keys: "⌃S/O/A/P",
-    action: "Focus SOAP section (Mac Ctrl)",
-    when: "Note detail",
-  },
-  {
-    keys: "Alt+S/O/A/P",
-    action: "Focus SOAP section (Windows/Linux)",
-    when: "Note detail",
-  },
-  { keys: "⌘/Ctrl+S", action: "Save draft now", when: "Note detail" },
-  { keys: "Esc", action: "Close dialog / help" },
-  { keys: "j / k", action: "Move focus down / up rows", when: "Notes list" },
-  { keys: "Enter", action: "Open focused note", when: "Notes list" },
-];
+function shortcutsForPlatform(apple: boolean): ShortcutRow[] {
+  return [
+    { keys: "?", action: "Show this shortcuts help" },
+    { keys: "D", action: "Toggle demo controls FAB", when: "Dev" },
+    { keys: "T", action: "Toggle telemetry panel", when: "Dev" },
+    { keys: "/", action: "Focus notes search", when: "Notes list" },
+    { keys: "g then n", action: "Go to Notes" },
+    { keys: "g then h", action: "Go to Home" },
+    { keys: "R", action: "Start review", when: "Note detail" },
+    { keys: "A", action: "Approve", when: "Note detail" },
+    { keys: "M", action: "Amend", when: "Note detail" },
+    { keys: "X", action: "Reject (opens confirm)", when: "Note detail" },
+    { keys: "E", action: "Return to queue", when: "Note detail" },
+    {
+      keys: apple ? "⌃S/O/A/P" : "Alt+S/O/A/P",
+      action: "Focus SOAP section",
+      when: "Note detail",
+    },
+    {
+      keys: apple ? "⌘S" : "Ctrl+S",
+      action: "Save draft now",
+      when: "Note detail",
+    },
+    { keys: "Esc", action: "Close dialog / help" },
+    { keys: "j / k", action: "Move focus down / up rows", when: "Notes list" },
+    { keys: "Enter", action: "Open focused note", when: "Notes list" },
+  ];
+}
 
 const SOAP_BY_KEY: Record<string, SoapSection> = {
   s: "S",
@@ -48,13 +51,6 @@ const SOAP_BY_KEY: Record<string, SoapSection> = {
   a: "A",
   p: "P",
 };
-
-function isMacPlatform() {
-  return (
-    typeof navigator !== "undefined" &&
-    /Mac|iPhone|iPad/.test(navigator.platform)
-  );
-}
 
 function isTypingTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
@@ -95,7 +91,7 @@ function focusSoapSection(section: SoapSection) {
 function soapSectionFromEvent(e: KeyboardEvent): SoapSection | null {
   const section = SOAP_BY_KEY[e.key.toLowerCase()];
   if (!section) return null;
-  if (isMacPlatform()) {
+  if (isApplePlatform()) {
     if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) return section;
   } else if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
     return section;
@@ -110,9 +106,14 @@ function soapSectionFromEvent(e: KeyboardEvent): SoapSection | null {
 export function KeyboardShortcutsHost() {
   const navigate = useNavigate();
   const closeConflict = useConflictStore((s) => s.closeConflict);
+  const setAutosaveOn = useAutosavePreferenceStore((s) => s.setEnabled);
   const conflictOpen = useConflictStore((s) => Boolean(s.open));
   const [helpOpen, setHelpOpen] = useState(false);
   const [pendingG, setPendingG] = useState(false);
+  const shortcuts = useMemo(
+    () => shortcutsForPlatform(isApplePlatform()),
+    [],
+  );
 
   useEffect(() => {
     const open = () => setHelpOpen(true);
@@ -138,6 +139,7 @@ export function KeyboardShortcutsHost() {
         }
         if (conflictOpen) {
           e.preventDefault();
+          setAutosaveOn(false);
           closeConflict();
           return;
         }
@@ -155,7 +157,7 @@ export function KeyboardShortcutsHost() {
         e.key.toLowerCase() === "s" &&
         !e.altKey &&
         !e.shiftKey &&
-        (isMacPlatform() ? e.metaKey : e.ctrlKey);
+        (isApplePlatform() ? e.metaKey : e.ctrlKey);
       if (isSaveChord) {
         const saveBtn = document.querySelector<HTMLButtonElement>(
           "[data-shortcut-save]",
@@ -274,7 +276,7 @@ export function KeyboardShortcutsHost() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navigate, helpOpen, conflictOpen, closeConflict, pendingG]);
+  }, [navigate, helpOpen, conflictOpen, closeConflict, setAutosaveOn, pendingG]);
 
   if (!helpOpen) return null;
 
@@ -287,7 +289,7 @@ export function KeyboardShortcutsHost() {
       onClick={() => setHelpOpen(false)}
     >
       <div
-        className="max-h-[min(80vh,32rem)] w-full max-w-md overflow-auto rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl"
+        className="max-h-[min(80vh,32rem)] w-full max-w-md overflow-auto rounded-lg border border-(--border) bg-(--card) p-4 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-2">
@@ -305,28 +307,28 @@ export function KeyboardShortcutsHost() {
         </div>
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="text-xs text-[var(--muted)] uppercase">
+            <tr className="text-xs text-(--muted) uppercase">
               <th className="pb-2 font-medium">Keys</th>
               <th className="pb-2 font-medium">Action</th>
             </tr>
           </thead>
           <tbody>
-            {SHORTCUTS.map((row) => (
-              <tr key={row.keys} className="border-t border-[var(--border)]/70">
+            {shortcuts.map((row) => (
+              <tr key={row.keys} className="border-t border-(--border)/70">
                 <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">
                   {row.keys}
                 </td>
-                <td className="py-2 text-[var(--foreground)]">
+                <td className="py-2 text-(--foreground)">
                   {row.action}
                   {row.when ? (
-                    <span className="text-[var(--muted)]"> · {row.when}</span>
+                    <span className="text-(--muted)"> · {row.when}</span>
                   ) : null}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="mt-3 text-xs text-[var(--muted)]">
+        <p className="mt-3 text-xs text-(--muted)">
           Action buttons always show their key — including when disabled.
           Press <kbd className="font-mono">?</kbd> or use header Shortcuts.
         </p>

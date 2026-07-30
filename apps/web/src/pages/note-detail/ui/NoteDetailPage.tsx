@@ -41,13 +41,13 @@ export function NoteDetailPage() {
     return (
       <main className="mx-auto max-w-3xl space-y-4 px-6 py-10">
         <h1 className="text-2xl font-semibold">You’re offline</h1>
-        <p className="text-sm text-[var(--muted)]">
+        <p className="text-sm text-(--muted)">
           This note isn’t in the local cache. Open it while online first, or go
           back to notes you’ve already loaded this session.
         </p>
         <Link
           to="/notes"
-          className="text-sm text-[var(--accent)] underline-offset-4 hover:underline"
+          className="text-sm text-(--accent) underline-offset-4 hover:underline"
         >
           ← Back to notes
         </Link>
@@ -60,7 +60,7 @@ export function NoteDetailPage() {
       <h1 className="text-2xl font-semibold">
         {notFound ? "Note not found" : "Couldn’t load note"}
       </h1>
-      <p className="text-sm text-[var(--muted)]">
+      <p className="text-sm text-(--muted)">
         {notFound
           ? `Could not load ${noteId}. It may have been cleared by a reseed.`
           : query.error instanceof Error
@@ -69,7 +69,7 @@ export function NoteDetailPage() {
       </p>
       <Link
         to="/notes"
-        className="text-sm text-[var(--accent)] underline-offset-4 hover:underline"
+        className="text-sm text-(--accent) underline-offset-4 hover:underline"
       >
         ← Back to notes
       </Link>

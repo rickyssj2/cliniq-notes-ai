@@ -6,7 +6,7 @@ export function PageFallback({ label = "Loading" }: { label?: string }) {
       role="status"
       aria-live="polite"
     >
-      <p className="text-sm text-[var(--muted)]">{label}…</p>
+      <p className="text-sm text-(--muted)">{label}…</p>
     </div>
   );
 }

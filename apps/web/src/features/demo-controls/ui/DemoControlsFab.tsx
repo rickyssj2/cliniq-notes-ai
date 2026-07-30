@@ -28,18 +28,18 @@ export function DemoControlsFab() {
   return (
     <div className="fixed bottom-3 left-3 z-40 flex max-w-[min(100vw-1.5rem,22rem)] flex-col items-start gap-2">
       {open && (
-        <div className="w-full space-y-2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 text-xs shadow-lg">
+        <div className="w-full space-y-2 rounded-lg border border-(--border) bg-(--card) p-3 text-xs shadow-lg">
           <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold tracking-wide uppercase text-[var(--muted)]">
+            <p className="font-semibold tracking-wide uppercase text-(--muted)">
               Demo controls
             </p>
-            <kbd className="rounded border border-[var(--border)] bg-stone-50 px-1.5 py-0.5 font-mono text-[10px]">
+            <kbd className="rounded border border-(--border) bg-stone-50 px-1.5 py-0.5 font-mono text-[10px]">
               D
             </kbd>
           </div>
 
           {controls.length === 0 ? (
-            <p className="text-[var(--muted)]">
+            <p className="text-(--muted)">
               Open a note for conflict / fail-next / boundary throws. Dataset is
               the API auto-seed (100k).
             </p>
@@ -60,8 +60,8 @@ export function DemoControlsFab() {
             </div>
           )}
 
-          {message && <p className="text-[var(--muted)]">{message}</p>}
-          <p className="text-[10px] text-[var(--muted)]">
+          {message && <p className="text-(--muted)">{message}</p>}
+          <p className="text-[10px] text-(--muted)">
             DevTools → Network → Offline for queue demos. Press{" "}
             <kbd className="font-mono">D</kbd> to hide ·{" "}
             <kbd className="font-mono">T</kbd> telemetry.
@@ -71,7 +71,7 @@ export function DemoControlsFab() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-[11px] font-medium shadow-sm hover:bg-stone-50"
+        className="rounded-full border border-(--border) bg-(--card) px-3 py-1.5 text-[11px] font-medium shadow-sm hover:bg-stone-50"
         title="Demo controls (D)"
       >
         {open ? "Hide demo" : "Demo · D"}

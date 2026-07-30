@@ -30,6 +30,7 @@ export {
   applyServerStatusChange,
   getAvailableActions,
   isContentReadOnly,
+  canEditContent,
 } from "./note-machine";
 
 export type {
@@ -41,4 +42,5 @@ export type {
   TransitionFailure,
   TransitionResult,
   AvailableAction,
+  ContentEditResult,
 } from "./note-machine";

@@ -14,6 +14,7 @@ export {
   applyServerStatusChange,
   getAvailableActions,
   isContentReadOnly,
+  canEditContent,
   NOTE_ACTIONS,
   AMEND_GRACE_MS,
 } from "@soulside/domain";

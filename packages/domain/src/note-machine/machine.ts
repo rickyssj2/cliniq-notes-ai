@@ -141,7 +141,73 @@ export function getAvailableActions(
   });
 }
 
-/** LOCKED notes are read-only for content and workflow (no outgoing user edges). */
+/** LOCKED / GENERATING notes are always content-locked by status alone. */
 export function isContentReadOnly(status: NoteStatus): boolean {
   return status === "LOCKED" || status === "GENERATING";
+}
+
+export type ContentEditResult =
+  | { ok: true }
+  | { ok: false; reason: string };
+
+/**
+ * Whether the actor may edit SOAP content. Components must use this rather
+ * than status/role checks — mirrors workflow guards (assigned ownership).
+ */
+export function canEditContent(
+  ctx: Pick<MachineContext, "status" | "assignedReviewerId" | "actor">,
+): ContentEditResult {
+  if (isContentReadOnly(ctx.status)) {
+    return {
+      ok: false,
+      reason: `Content is read-only while status is ${ctx.status}`,
+    };
+  }
+  if (!ctx.actor) {
+    return { ok: false, reason: "No actor — cannot edit content" };
+  }
+
+  switch (ctx.status) {
+    case "IN_REVIEW": {
+      const isAssignee = ctx.assignedReviewerId === ctx.actor.id;
+      const isAdmin = ctx.actor.role === "ADMIN";
+      if (!isAssignee && !isAdmin) {
+        return {
+          ok: false,
+          reason:
+            "Only the assigned reviewer or an admin can edit SOAP while in review",
+        };
+      }
+      return { ok: true };
+    }
+    case "READY_FOR_REVIEW":
+      return {
+        ok: false,
+        reason: "Start review to claim the note before editing SOAP",
+      };
+    case "REJECTED":
+    case "AMENDED":
+      if (ctx.actor.role !== "CLINICIAN" && ctx.actor.role !== "ADMIN") {
+        return {
+          ok: false,
+          reason: "Only a clinician (or admin) can edit this note",
+        };
+      }
+      return { ok: true };
+    case "APPROVED":
+      return {
+        ok: false,
+        reason: "Approved notes are read-only; use Amend to branch a new version",
+      };
+    case "FAILED":
+      return {
+        ok: false,
+        reason: "Failed notes are read-only; request regeneration",
+      };
+    default:
+      return {
+        ok: false,
+        reason: `Content cannot be edited while status is ${ctx.status}`,
+      };
+  }
 }

@@ -2,6 +2,7 @@ import {
   NOTE_STATUSES,
   TRANSITIONS,
   can,
+  canEditContent,
   type CreateVersionRequest,
   type CursorPage,
   type NoteAction,
@@ -480,6 +481,18 @@ export class NoteStore {
     }
     if (!body.baseVersionId || !body.content?.sections) {
       return { status: 400, body: { error: "invalid_body" } };
+    }
+
+    const editGate = canEditContent({
+      status: note.status,
+      assignedReviewerId: note.assignedReviewerId,
+      actor: { id: actor.id, role: actor.role },
+    });
+    if (!editGate.ok) {
+      return {
+        status: 403,
+        body: { error: "content_forbidden", reason: editGate.reason },
+      };
     }
 
     let head = this.versions.get(note.currentVersionId);

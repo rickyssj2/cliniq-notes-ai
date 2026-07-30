@@ -57,18 +57,18 @@ export function ConflictMergeModal({
       aria-labelledby="conflict-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
     >
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-lg">
-        <header className="border-b border-[var(--border)] px-5 py-4">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-(--border) bg-(--card) shadow-lg">
+        <header className="border-b border-(--border) px-5 py-4">
           <h2 id="conflict-title" className="text-lg font-semibold">
             Version conflict
           </h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
+          <p className="mt-1 text-sm text-(--muted)">
             Server advanced to rev {conflict.current.revision} while you edited
             from a stale base. Pick per section, then save against the new head.
           </p>
         </header>
 
-        <div className="flex gap-2 border-b border-[var(--border)] px-5 py-2">
+        <div className="flex gap-2 border-b border-(--border) px-5 py-2">
           {SECTIONS.map((s) => (
             <button
               key={s}
@@ -76,8 +76,8 @@ export function ConflictMergeModal({
               onClick={() => setActive(s)}
               className={`rounded px-3 py-1 text-sm ${
                 active === s
-                  ? "bg-[var(--accent)] text-white"
-                  : "text-[var(--muted)] hover:bg-[var(--border)]"
+                  ? "bg-(--accent) text-white"
+                  : "text-(--muted) hover:bg-(--border)"
               }`}
             >
               {s} · {LABELS[s]}
@@ -113,10 +113,10 @@ export function ConflictMergeModal({
           </Column>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3">
-          <div className="flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--border) px-5 py-3">
+          <div className="flex flex-wrap gap-2 text-xs text-(--muted)">
             {SECTIONS.map((s) => (
-              <span key={s} className="rounded border border-[var(--border)] px-2 py-1">
+              <span key={s} className="rounded border border-(--border) px-2 py-1">
                 {s}: {choices[s]}
               </span>
             ))}
@@ -166,14 +166,14 @@ function Column({
     <div
       className={`flex flex-col rounded-md border p-3 ${
         selected
-          ? "border-[var(--accent)] ring-1 ring-[var(--accent)]"
-          : "border-[var(--border)]"
+          ? "border-(--accent) ring-1 ring-(--accent)"
+          : "border-(--border)"
       }`}
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-semibold">{title}</p>
-          <p className="text-xs text-[var(--muted)]">{subtitle}</p>
+          <p className="text-xs text-(--muted)">{subtitle}</p>
         </div>
         {onSelect && (
           <Button type="button" size="sm" variant="outline" onClick={onSelect}>
@@ -181,7 +181,7 @@ function Column({
           </Button>
         )}
       </div>
-      <div className="min-h-[8rem] flex-1 overflow-auto rounded bg-[var(--background)] p-2">
+      <div className="min-h-[8rem] flex-1 overflow-auto rounded bg-(--background) p-2">
         {children}
       </div>
     </div>

@@ -41,20 +41,20 @@ export function HomePage() {
         hidden
         message="Dev: intentional render crash"
       />
-      <p className="text-sm font-medium tracking-[0.18em] text-[var(--muted)] uppercase">
+      <p className="text-sm font-medium tracking-[0.18em] text-(--muted) uppercase">
         Soulside AI
       </p>
-      <h1 className="text-4xl font-semibold tracking-tight text-[var(--foreground)]">
+      <h1 className="text-4xl font-semibold tracking-tight text-(--foreground)">
         Clinical notes
       </h1>
-      <p className="max-w-2xl text-base text-[var(--muted)]">
+      <p className="max-w-2xl text-base text-(--muted)">
         Signed in as <strong>{actor.displayName}</strong> ({actor.role}). Use the
         header avatar to change roles and watch nav + route guards update.
       </p>
-      <ul className="space-y-2 text-sm text-[var(--muted)]">
+      <ul className="space-y-2 text-sm text-(--muted)">
         <li>
           <Link
-            className="text-[var(--accent)] underline-offset-4 hover:underline"
+            className="text-(--accent) underline-offset-4 hover:underline"
             to="/notes"
           >
             Notes
@@ -63,7 +63,7 @@ export function HomePage() {
         </li>
         <li>
           <Link
-            className="text-[var(--accent)] underline-offset-4 hover:underline"
+            className="text-(--accent) underline-offset-4 hover:underline"
             to="/admin"
           >
             Admin
@@ -72,7 +72,7 @@ export function HomePage() {
         </li>
       </ul>
       {import.meta.env.DEV ? (
-        <p className="border-t border-[var(--border)] pt-6 text-xs text-[var(--muted)]">
+        <p className="border-t border-(--border) pt-6 text-xs text-(--muted)">
           Dev demos live in the bottom-left{" "}
           <Button
             type="button"
