@@ -84,6 +84,7 @@ export function ConflictMergeHost() {
     <ConflictMergeModal
       conflict={payload.conflict}
       yours={payload.yours}
+      source={payload.source}
       onCancel={onKeepEditing}
       onResolve={(sections, baseVersionId) => {
         void onResolve(sections, baseVersionId);

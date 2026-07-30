@@ -1,8 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { NoteDetail, NoteSummary, VersionConflictError } from "@soulside/domain";
 import { applyServerStatusChange } from "@soulside/domain";
-import type { RealtimeEvent } from "@shared/realtime";
+import { getActorId } from "@shared/api";
 import { log } from "@shared/logging";
+import { pushNotice } from "@shared/notices";
+import type { RealtimeEvent } from "@shared/realtime";
+import { clearPendingGeneration } from "@shared/realtime";
 import { notesQueryKeys, type NotesFilterState } from "../api/query-keys";
 import { noteMatchesListFilters } from "./note-matches-list-filters";
 import {
@@ -11,7 +14,6 @@ import {
 } from "../model/editor-draft-store";
 import { useConflictStore } from "../model/conflict-store";
 import { usePresenceStore } from "../model/presence-store";
-import { clearPendingGeneration } from "@shared/realtime";
 
 const seenEventIds = new Set<string>();
 const SEEN_CAP = 2_000;
@@ -75,6 +77,11 @@ function patchNoteInLists(
   }
 }
 
+function isSelfActor(actorId: string): boolean {
+  const self = getActorId();
+  return Boolean(self && self === actorId);
+}
+
 /**
  * Apply a WS event to Query + presence + conflict stores.
  * Returns false if the event was a duplicate (already seen).
@@ -106,6 +113,7 @@ export function applyRealtimeEvent(
 
       const detailKey = notesQueryKeys.detail(event.noteId);
       const detail = queryClient.getQueryData<NoteDetail>(detailKey);
+      let statusActuallyChanged = false;
 
       if (detail) {
         if (detail.status === event.toStatus) {
@@ -115,6 +123,7 @@ export function applyRealtimeEvent(
             updatedAt: event.at,
           });
         } else {
+          statusActuallyChanged = true;
           const machine = applyServerStatusChange({
             status: detail.status,
             to: event.toStatus,
@@ -153,11 +162,26 @@ export function applyRealtimeEvent(
         status: event.toStatus,
         updatedAt: event.at,
       });
+
+      // Notify when viewing a note and someone else changed lifecycle status.
+      if (
+        detail &&
+        statusActuallyChanged &&
+        !isSelfActor(event.actor.id)
+      ) {
+        pushNotice({
+          kind: "info",
+          noteId: event.noteId,
+          title: `Status → ${event.toStatus}`,
+          body: `${event.actor.displayName} updated this note.`,
+        });
+      }
       return true;
     }
     case "note.version_added": {
       const draft = useEditorDraftStore.getState().drafts[event.noteId];
       const dirty = isDraftDirty(draft);
+      let openedConflict = false;
 
       if (
         dirty &&
@@ -193,11 +217,15 @@ export function applyRealtimeEvent(
             yours: draft,
             source: "realtime",
           });
+          openedConflict = true;
         }
       }
 
       const detailKey = notesQueryKeys.detail(event.noteId);
       const detail = queryClient.getQueryData<NoteDetail>(detailKey);
+      const tipChanged =
+        Boolean(detail) && detail!.currentVersion.id !== event.version.id;
+
       if (detail && !dirty) {
         queryClient.setQueryData<NoteDetail>(detailKey, {
           ...detail,
@@ -230,6 +258,23 @@ export function applyRealtimeEvent(
         },
         updatedAt: event.at,
       });
+
+      // Silent hydrate path: clean draft + foreign tip — surface a toast so
+      // reviewer/admin concurrent saves are never invisible.
+      if (
+        detail &&
+        !dirty &&
+        !openedConflict &&
+        tipChanged &&
+        !isSelfActor(event.version.authoredBy.id)
+      ) {
+        pushNotice({
+          kind: "info",
+          noteId: event.noteId,
+          title: `SOAP updated · rev ${event.version.revision}`,
+          body: `${event.version.authoredBy.displayName} saved while you were viewing this note. Your editor now shows their content.`,
+        });
+      }
       return true;
     }
     default:

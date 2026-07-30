@@ -210,7 +210,7 @@ pnpm --filter @soulside/domain test
 
 ### Offline — Write queue survives reloads
 
-Dexie `mutationQueue` holds `create_version` / `transition` intents. Offline autosave coalesces pending version rows per note. Reload rehydrates SOAP from the queue. Reconnect drains FIFO; `409` opens the same merge UI. Connectivity banner + header badge follow `navigator.onLine`. Query `gcTime` is 35m for cached offline reads.
+Dexie `mutationQueue` holds `create_version` / `transition` intents. Offline autosave coalesces pending version rows per note. Reload rehydrates SOAP from the queue. Reconnect drains FIFO; SOAP `409` / forbidden saves open the same merge UI (not silent discard); lost claims toast and drop so the queue continues. Foreign WS `version_added` on a clean draft toasts; dirty drafts still open the merge modal. Connectivity banner + header badge follow `navigator.onLine`. Query `gcTime` is 35m for cached offline reads.
 
 ### Real-Time — Reconcile channel with optimistic state
 
@@ -272,7 +272,7 @@ API must be running for `pnpm simulate` (`pnpm dev` or `pnpm dev:api`).
 | **State machine** | `packages/domain/src/note-machine/machine.test.ts` | Every transition edge, guards (assigned reviewer, **ADMIN break-glass**, MFA, grace window), `canEditContent`, `getAvailableActions`, server-driven status apply |
 | **Autosave coalesce** | `apps/web/src/features/autosave-note/model/coalesced-saver.test.ts` | ≤1 in-flight save + ≤1 follow-up while typing |
 | **Telemetry redact** | `apps/web/src/shared/telemetry/redact.test.ts` | PII keys stripped before batch POST |
-| **Offline queue** | `apps/web/src/features/offline-queue/model/mutation-queue.test.ts` | Dexie coalesce per note, FIFO drain order |
+| **Offline queue** | `apps/web/src/features/offline-queue/model/mutation-queue.test.ts`, `drain.test.ts` | Dexie coalesce per note, FIFO order, terminal 4xx discard on drain |
 | **Realtime reconcile** | `apps/web/src/entities/note/lib/apply-realtime-event.test.ts` | `eventId` dedupe (at-least-once WS); seen-id cap so memory cannot grow forever |
 
 These run in CI without a browser or live API.

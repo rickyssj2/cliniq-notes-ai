@@ -25,13 +25,14 @@ OFFLINE
 ONLINE
   [ Drain FIFO orderBy(createdAt) ] → [ REST ]
         │
-   ┌────┼────────────┐
-   ▼    ▼            ▼
- [200] [409 merge] [5xx keep / retry]
- remove  same UI    keep row
+   ┌────┼────────────────┬──────────────────┐
+   ▼    ▼                ▼                  ▼
+ [200] [409 / 4xx SOAP] [transition 4xx] [5xx keep / retry]
+ remove  merge modal     toast + drop     keep row
+         + toast
 ```
 
-**Rules:** coalesce `create_version` per note · transitions also queueable · uncached detail shows offline message (not “not found”).
+**Rules:** coalesce `create_version` per note · transitions also queueable · uncached detail shows offline message (not “not found”) · terminal transition 4xx (e.g. offline `start_review` after peer claimed) are discarded with a toast · discarded/conflicted SOAP opens the same 3-way merge modal so offline edits are not silently lost.
 
 ---
 

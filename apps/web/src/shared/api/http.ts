@@ -31,6 +31,11 @@ export function setActorIdProvider(provider: ActorIdProvider) {
   actorIdProvider = provider;
 }
 
+/** Current session actor id (null until providers wire `setActorIdProvider`). */
+export function getActorId(): string | null {
+  return actorIdProvider();
+}
+
 export type ApiFetchInit = RequestInit & {
   /** Override ambient correlation; defaults to context or a fresh id. */
   correlationId?: string;

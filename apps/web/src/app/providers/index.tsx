@@ -8,6 +8,8 @@ import { db } from "@shared/db";
 import { installGlobalErrorHandlers } from "@shared/errors";
 import { flush } from "@shared/telemetry";
 import { AppErrorBoundary } from "@shared/ui/error-boundary";
+import { ConflictMergeHost } from "@features/resolve-conflict";
+import { ToastHost } from "@features/notices";
 import { useRealtimeBootstrap } from "@features/realtime-sync";
 import { useOfflineBootstrap } from "@features/offline-queue";
 import { KeyboardShortcutsHost } from "@features/keyboard-shortcuts";
@@ -20,12 +22,6 @@ type AppProvidersProps = {
 };
 
 setActorIdProvider(() => useSessionStore.getState().actor.id);
-
-const ConflictMergeHost = lazy(() =>
-  import("@features/resolve-conflict/ui/ConflictMergeHost").then((m) => ({
-    default: m.ConflictMergeHost,
-  })),
-);
 
 const TelemetryDebugPanel = lazy(() =>
   import("@features/telemetry-debug/ui/TelemetryDebugPanel").then((m) => ({
@@ -72,8 +68,9 @@ function TelemetryBootstrap({ children }: { children: ReactNode }) {
 }
 
 /**
- * Defer conflict UI chunk until note detail (or an open conflict).
- * Keeps /notes list free of merge-modal / word-diff code.
+ * Mount conflict UI on note detail (or when a conflict is already open).
+ * Eager import — lazy chunks fail offline when the network can't fetch the
+ * resolve-conflict module after navigating to a detail page.
  */
 function ConflictHostGate() {
   const location = useLocation();
@@ -83,11 +80,9 @@ function ConflictHostGate() {
   if (!onNoteDetail && !conflictOpen) return null;
 
   return (
-    <Suspense fallback={null}>
-      <AppErrorBoundary label="conflict-host" variant="panel">
-        <ConflictMergeHost />
-      </AppErrorBoundary>
-    </Suspense>
+    <AppErrorBoundary label="conflict-host" variant="panel">
+      <ConflictMergeHost />
+    </AppErrorBoundary>
   );
 }
 
@@ -97,6 +92,7 @@ function RealtimeBootstrap({ children }: { children: ReactNode }) {
     <>
       {children}
       <ConflictHostGate />
+      <ToastHost />
     </>
   );
 }

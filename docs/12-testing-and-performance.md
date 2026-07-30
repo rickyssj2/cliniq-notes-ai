@@ -46,8 +46,9 @@ flowchart TB
 | Test | Invariant |
 |---|---|
 | `coalesced-saver.test.ts` | Autosave scheduling under rapid edits |
-| `mutation-queue.test.ts` | Offline queue coalesce + ordered drain |
-| `apply-realtime-event.test.ts` | WS dedupe + bounded `eventId` memory |
+| `mutation-queue.test.ts` | Offline queue coalesce + FIFO order |
+| `drain.test.ts` | Terminal transition toast; SOAP conflict opens merge modal; 5xx kept |
+| `apply-realtime-event.test.ts` | WS dedupe + silent foreign version toast vs dirty merge |
 | `redact.test.ts` | Telemetry PII stripping |
 
 ---

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { SoapSection, VersionConflictError } from "@soulside/domain";
-import type { EditorDraft } from "@entities/note";
+import type { ConflictSource, EditorDraft } from "@entities/note";
 import { Button } from "@shared/ui/button";
 import { WordDiff } from "@shared/ui/word-diff";
 
@@ -17,13 +17,37 @@ type Choice = "yours" | "server" | "ancestor";
 type Props = {
   conflict: VersionConflictError;
   yours: EditorDraft;
+  source?: ConflictSource;
   onCancel: () => void;
   onResolve: (sections: Record<SoapSection, string>, baseVersionId: string) => void;
 };
 
+function copyForSource(
+  source: ConflictSource | undefined,
+  revision: number,
+): { title: string; body: string } {
+  if (source === "offline_drain") {
+    return {
+      title: "Offline edits conflict",
+      body: `While you were offline, the note moved to rev ${revision}. Your queued SOAP was not applied — pick per section to recover your work, then save against the new head.`,
+    };
+  }
+  if (source === "realtime") {
+    return {
+      title: "Someone else saved",
+      body: `Server advanced to rev ${revision} while you were editing. Pick per section, then save against the new head.`,
+    };
+  }
+  return {
+    title: "Version conflict",
+    body: `Server advanced to rev ${revision} while you edited from a stale base. Pick per section, then save against the new head.`,
+  };
+}
+
 export function ConflictMergeModal({
   conflict,
   yours,
+  source,
   onCancel,
   onResolve,
 }: Props) {
@@ -49,6 +73,7 @@ export function ConflictMergeModal({
   const ancestor = conflict.commonAncestor.content.sections[active];
   const yoursText = yours.sections[active];
   const serverText = conflict.current.content.sections[active];
+  const copy = copyForSource(source, conflict.current.revision);
 
   return (
     <div
@@ -60,12 +85,9 @@ export function ConflictMergeModal({
       <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-(--border) bg-(--card) shadow-lg">
         <header className="border-b border-(--border) px-5 py-4">
           <h2 id="conflict-title" className="text-lg font-semibold">
-            Version conflict
+            {copy.title}
           </h2>
-          <p className="mt-1 text-sm text-(--muted)">
-            Server advanced to rev {conflict.current.revision} while you edited
-            from a stale base. Pick per section, then save against the new head.
-          </p>
+          <p className="mt-1 text-sm text-(--muted)">{copy.body}</p>
         </header>
 
         <div className="flex gap-2 border-b border-(--border) px-5 py-2">

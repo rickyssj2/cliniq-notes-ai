@@ -2,11 +2,13 @@ import { create } from "zustand";
 import type { VersionConflictError } from "@soulside/domain";
 import type { EditorDraft } from "./editor-draft-store";
 
+export type ConflictSource = "save" | "realtime" | "offline_drain";
+
 export type ConflictPayload = {
   noteId: string;
   conflict: VersionConflictError;
   yours: EditorDraft;
-  source: "save" | "realtime";
+  source: ConflictSource;
 };
 
 type ConflictState = {

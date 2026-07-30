@@ -1,15 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import type { NoteDetail } from "@soulside/domain";
+import { setActorIdProvider } from "@shared/api";
+import { useNoticeStore } from "@shared/notices";
 import { notesQueryKeys } from "../api/query-keys";
+import { useEditorDraftStore } from "../model/editor-draft-store";
+import { useConflictStore } from "../model/conflict-store";
 import { applyRealtimeEvent } from "./apply-realtime-event";
 
 function detailFixture(over: Partial<NoteDetail> = {}): NoteDetail {
   return {
     id: "note_1",
-    status: "READY_FOR_REVIEW",
+    status: "IN_REVIEW",
     patient: { id: "pat_1", displayName: "Riley" },
-    assignedReviewer: null,
+    assignedReviewer: {
+      id: "dr_a",
+      displayName: "Dr. A",
+      role: "REVIEWER",
+    },
     approvedAt: null,
     createdAt: "2025-01-01T00:00:00.000Z",
     updatedAt: "2025-01-01T00:00:00.000Z",
@@ -29,13 +37,23 @@ function detailFixture(over: Partial<NoteDetail> = {}): NoteDetail {
 }
 
 describe("applyRealtimeEvent", () => {
+  beforeEach(() => {
+    useNoticeStore.getState().clearNotices();
+    useConflictStore.getState().closeConflict();
+    useEditorDraftStore.getState().clear("note_1");
+    setActorIdProvider(() => "dr_b");
+  });
+
   it("dedupes by eventId (at-least-once delivery)", () => {
     const qc = new QueryClient();
-    qc.setQueryData(notesQueryKeys.detail("note_1"), detailFixture());
+    qc.setQueryData(
+      notesQueryKeys.detail("note_1"),
+      detailFixture({ status: "READY_FOR_REVIEW", assignedReviewer: null }),
+    );
 
     const event = {
       type: "note.status_changed" as const,
-      eventId: "evt_dup",
+      eventId: `evt_dup_${crypto.randomUUID()}`,
       noteId: "note_1",
       fromStatus: "READY_FOR_REVIEW" as const,
       toStatus: "IN_REVIEW" as const,
@@ -53,7 +71,7 @@ describe("applyRealtimeEvent", () => {
     const qc = new QueryClient();
     const first = {
       type: "note.status_changed" as const,
-      eventId: "evt_first",
+      eventId: `evt_first_${crypto.randomUUID()}`,
       noteId: "note_leak",
       fromStatus: "READY_FOR_REVIEW" as const,
       toStatus: "IN_REVIEW" as const,
@@ -65,12 +83,79 @@ describe("applyRealtimeEvent", () => {
     for (let i = 0; i < 2000; i++) {
       applyRealtimeEvent(qc, {
         ...first,
-        eventId: `evt_${i}`,
+        eventId: `evt_cap_${i}`,
         noteId: `note_${i}`,
       });
     }
 
     // After cap eviction, the original id can be applied again.
     expect(applyRealtimeEvent(qc, first)).toBe(true);
+  });
+
+  it("toasts when a foreign version silently hydrates a clean draft", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(notesQueryKeys.detail("note_1"), detailFixture());
+    useEditorDraftStore.getState().hydrate({
+      noteId: "note_1",
+      baseVersionId: "ver_1",
+      content: { sections: { S: "s", O: "o", A: "a", P: "p" } },
+    });
+
+    applyRealtimeEvent(qc, {
+      type: "note.version_added",
+      eventId: `evt_ver_${crypto.randomUUID()}`,
+      noteId: "note_1",
+      version: {
+        id: "ver_2",
+        revision: 2,
+        parentVersionId: "ver_1",
+        content: { sections: { S: "admin edit", O: "o", A: "a", P: "p" } },
+        authoredBy: {
+          id: "admin_1",
+          displayName: "Admin",
+          role: "ADMIN",
+        },
+      },
+      at: "2025-01-01T02:00:00.000Z",
+    });
+
+    const notices = useNoticeStore.getState().items;
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.title).toMatch(/SOAP updated/i);
+    expect(notices[0]?.body).toMatch(/Admin/);
+    const detail = qc.getQueryData<NoteDetail>(notesQueryKeys.detail("note_1"));
+    expect(detail?.currentVersion.id).toBe("ver_2");
+  });
+
+  it("opens merge modal instead of toast when the local draft is dirty", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(notesQueryKeys.detail("note_1"), detailFixture());
+    useEditorDraftStore.getState().hydrate({
+      noteId: "note_1",
+      baseVersionId: "ver_1",
+      content: { sections: { S: "s", O: "o", A: "a", P: "p" } },
+    });
+    useEditorDraftStore.getState().setSection("note_1", "S", "local dirty");
+
+    applyRealtimeEvent(qc, {
+      type: "note.version_added",
+      eventId: `evt_dirty_${crypto.randomUUID()}`,
+      noteId: "note_1",
+      version: {
+        id: "ver_2",
+        revision: 2,
+        parentVersionId: "ver_1",
+        content: { sections: { S: "admin edit", O: "o", A: "a", P: "p" } },
+        authoredBy: {
+          id: "admin_1",
+          displayName: "Admin",
+          role: "ADMIN",
+        },
+      },
+      at: "2025-01-01T02:00:00.000Z",
+    });
+
+    expect(useConflictStore.getState().open?.source).toBe("realtime");
+    expect(useNoticeStore.getState().items).toHaveLength(0);
   });
 });

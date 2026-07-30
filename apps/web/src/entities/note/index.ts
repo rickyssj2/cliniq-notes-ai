@@ -58,6 +58,7 @@ export {
 export {
   useConflictStore,
   type ConflictPayload,
+  type ConflictSource,
 } from "./model/conflict-store";
 export { applyRealtimeEvent } from "./lib/apply-realtime-event";
 export { NoteStatusBadge } from "./ui/NoteStatusBadge";
