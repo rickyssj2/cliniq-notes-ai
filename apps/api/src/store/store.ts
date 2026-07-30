@@ -410,14 +410,19 @@ export class NoteStore {
     const page = items.slice(offset, offset + limit);
     const nextOffset = offset + page.length;
     const hasMore = nextOffset < total;
+    const hasPrev = offset > 0;
+    const prevOffset = Math.max(0, offset - limit);
 
     return {
       cursor: {
         next: hasMore ? encodeCursor(nextOffset) : null,
+        prev: hasPrev ? encodeCursor(prevOffset) : null,
         hasMore,
+        hasPrev,
       },
       items: page.map((n) => this.toSummary(n)),
       meta: {
+        offset,
         total,
         returned: page.length,
         generatedAt: new Date().toISOString(),

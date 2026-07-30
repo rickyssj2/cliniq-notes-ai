@@ -230,7 +230,7 @@ Unload uses `sendBeacon` then `fetch({ keepalive: true })`. `redactProps` strips
 
 ### Scale — List/detail/history at 100k+ notes
 
-TanStack Virtual + infinite cursor query. Filters/sort/search URL-persisted. Default seed **100k**. Detail version content loads on demand. Viewport-scoped WS subscriptions.
+TanStack Virtual + infinite cursor query with a sliding `maxPages` window (bidirectional fetch). Filters/sort/search URL-persisted. Default seed **100k**. Detail version content loads on demand. Viewport-scoped WS subscriptions.
 
 ### Keyboard shortcuts
 

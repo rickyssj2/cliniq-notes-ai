@@ -40,6 +40,8 @@ export {
   useNotesInfiniteQuery,
   usePatchNoteInLists,
   flattenNotesPages,
+  NOTES_PAGE_SIZE,
+  NOTES_LIST_MAX_PAGES,
 } from "./api/use-notes-query";
 export { useNoteDetailQuery } from "./api/use-note-detail";
 export { useNoteVersionQuery } from "./api/use-note-version";

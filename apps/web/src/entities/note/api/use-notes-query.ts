@@ -4,6 +4,16 @@ import { fetchNotesPage } from "./notes-api";
 import { notesQueryKeys, type NotesFilterState } from "./query-keys";
 import { noteMatchesListFilters } from "../lib/note-matches-list-filters";
 
+/** Page size for list fetches — keep in sync with scroll-window math. */
+export const NOTES_PAGE_SIZE = 50;
+
+/**
+ * Sliding cache window for the infinite list. Caps client memory while still
+ * allowing scroll-back via `getPreviousPageParam` + `fetchPreviousPage`.
+ * 6 × 50 ≈ 300 summaries retained at once.
+ */
+export const NOTES_LIST_MAX_PAGES = 6;
+
 export function useNotesInfiniteQuery(filters: NotesFilterState) {
   return useInfiniteQuery({
     queryKey: notesQueryKeys.list(filters),
@@ -11,11 +21,14 @@ export function useNotesInfiniteQuery(filters: NotesFilterState) {
       fetchNotesPage({
         ...filters,
         cursor: pageParam,
-        limit: 50,
+        limit: NOTES_PAGE_SIZE,
       }),
     initialPageParam: null as string | null,
+    maxPages: NOTES_LIST_MAX_PAGES,
     getNextPageParam: (last) =>
       last.cursor.hasMore ? last.cursor.next : undefined,
+    getPreviousPageParam: (first) =>
+      first.cursor.hasPrev ? first.cursor.prev : undefined,
   });
 }
 

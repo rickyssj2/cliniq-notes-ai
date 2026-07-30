@@ -135,10 +135,10 @@ React Compiler is **not** wired in this project. Optimizations are explicit:
 | Layer | Pattern |
 |---|---|
 | Bundle | `lazy()` routes + deferred conflict/telemetry chunks |
-| List | TanStack Virtual + infinite query (cursor pages) |
+| List | TanStack Virtual + infinite query (`maxPages` sliding window) |
 | Server cache | Query `staleTime` / `gcTime` / `offlineFirst` |
 | Network | WS scoped to viewport + detail; autosave coalesce |
-| Memory | Realtime `eventId` cap; virtualizer unmounts off-screen rows |
+| Memory | List window ≤ `NOTES_LIST_MAX_PAGES`; realtime `eventId` cap; virtualizer unmounts off-screen rows |
 
 Enable React Compiler later via `babel-plugin-react-compiler` on the Vite React plugin — re-run `pnpm test:e2e` after.
 

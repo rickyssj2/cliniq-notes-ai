@@ -90,10 +90,15 @@ export type NoteDetail = NoteSummary & {
 export type CursorPage<T> = {
   cursor: {
     next: string | null;
+    /** Offset cursor for the previous page; null at the start of the list. */
+    prev: string | null;
     hasMore: boolean;
+    hasPrev: boolean;
   };
   items: T[];
   meta: {
+    /** Absolute offset of this page within the filtered result set. */
+    offset: number;
     total: number;
     returned: number;
     generatedAt: string;

@@ -25,7 +25,14 @@ export function NotesListPage() {
     return map;
   }, [notes]);
 
-  const total = query.data?.pages[0]?.meta.total ?? notes.length;
+  // Any retained page carries the same filtered total (pages[0] may slide away).
+  const total =
+    query.data?.pages.find((p) => typeof p.meta.total === "number")?.meta
+      .total ?? notes.length;
+
+  const windowStart =
+    query.data?.pages[0]?.meta.offset ?? 0;
+  const loadedThrough = windowStart + notes.length;
 
   const offlineEmpty =
     notes.length === 0 &&
@@ -43,8 +50,9 @@ export function NotesListPage() {
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Notes</h1>
         <p className="max-w-2xl text-sm text-(--muted)">
-          Virtualized list with viewport WebSocket subscriptions. Cached pages
-          stay readable offline; edits queue to IndexedDB until you’re back.
+          Virtualized list with a sliding page window and viewport WebSocket
+          subscriptions. The window stays readable offline; edits queue to
+          IndexedDB until you’re back.
         </p>
       </div>
 
@@ -65,13 +73,20 @@ export function NotesListPage() {
 
       <NotesTable
         notes={notes}
+        loadedThrough={loadedThrough}
         total={total}
         isLoading={query.isLoading && notes.length === 0}
         isFetchingNextPage={query.isFetchingNextPage}
+        isFetchingPreviousPage={query.isFetchingPreviousPage}
         hasNextPage={Boolean(query.hasNextPage) && online}
+        hasPreviousPage={Boolean(query.hasPreviousPage) && online}
         fetchNextPage={() => {
           if (!online) return;
           void query.fetchNextPage();
+        }}
+        fetchPreviousPage={() => {
+          if (!online) return;
+          void query.fetchPreviousPage();
         }}
         sort={filters.sort}
         order={filters.order}
