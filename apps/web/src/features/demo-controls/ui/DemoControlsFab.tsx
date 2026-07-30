@@ -40,8 +40,8 @@ export function DemoControlsFab() {
 
           {controls.length === 0 ? (
             <p className="text-(--muted)">
-              Open a note for conflict / fail-next / boundary throws. Dataset is
-              the API auto-seed (100k).
+              Open Notes for empty-workspace showcase, or a note for conflict /
+              fail-next / boundary throws. Dataset is the API auto-seed (100k).
             </p>
           ) : (
             <div className="flex flex-col gap-1.5">

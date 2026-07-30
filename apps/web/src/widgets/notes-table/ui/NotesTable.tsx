@@ -7,6 +7,7 @@ import {
   type RefObject,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import type { NoteSummary } from "@soulside/domain";
 import {
@@ -62,17 +63,44 @@ function SortHeader({
   onToggle: (field: NotesSortField) => void;
   className?: string;
 }) {
+  const nextHint = active
+    ? order === "asc"
+      ? "sorted ascending — click for descending"
+      : "sorted descending — click for ascending"
+    : "click to sort";
+
   return (
     <button
       type="button"
       onClick={() => onToggle(field)}
+      aria-label={`${label}, ${nextHint}`}
+      title={`${label} — ${nextHint}`}
       className={cn(
-        "text-left text-xs font-semibold tracking-wide text-(--muted) uppercase",
+        "group inline-flex items-center gap-1 text-left text-xs font-semibold tracking-wide uppercase",
+        active ? "text-(--foreground)" : "text-(--muted) hover:text-(--foreground)",
         className,
       )}
     >
-      {label}
-      {active ? (order === "asc" ? " ↑" : " ↓") : ""}
+      <span>{label}</span>
+      <span
+        className={cn(
+          "inline-flex shrink-0",
+          active
+            ? "text-(--accent)"
+            : "text-(--muted) opacity-45 group-hover:opacity-80",
+        )}
+        aria-hidden
+      >
+        {active ? (
+          order === "asc" ? (
+            <ArrowUp className="size-3.5" strokeWidth={2.25} />
+          ) : (
+            <ArrowDown className="size-3.5" strokeWidth={2.25} />
+          )
+        ) : (
+          <ArrowUpDown className="size-3.5" strokeWidth={2} />
+        )}
+      </span>
     </button>
   );
 }

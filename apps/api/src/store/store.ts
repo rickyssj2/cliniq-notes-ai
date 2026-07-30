@@ -403,7 +403,9 @@ export class NoteStore {
         primary = a.updatedAt.localeCompare(b.updatedAt);
       }
       if (primary !== 0) return primary * dir;
-      return a.id.localeCompare(b.id) * dir;
+      // Stable secondary: id always ascending so ties don't reverse when
+      // flipping primary order (keeps cursor pagination deterministic).
+      return a.id.localeCompare(b.id);
     });
 
     const total = items.length;

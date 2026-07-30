@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   flattenNotesPages,
   useNotesInfiniteQuery,
 } from "@entities/note";
 import { NotesFilters, useNotesListSearchParams } from "@features/filter-notes";
 import { BulkActionsBar } from "@features/bulk-note-actions";
+import { useDemoControlsStore } from "@features/demo-controls";
 import { useEffectiveOnline } from "@features/offline-queue";
 import { isNetworkError } from "@shared/api";
 import { NotesTable } from "@widgets/notes-table";
@@ -14,6 +15,30 @@ export function NotesListPage() {
     useNotesListSearchParams();
   const online = useEffectiveOnline();
   const query = useNotesInfiniteQuery(filters);
+  const registerDemo = useDemoControlsStore((s) => s.register);
+  const clearDemo = useDemoControlsStore((s) => s.clear);
+  /** Dev-only: force empty-workspace UI even with a seeded dataset. */
+  const [showcaseEmpty, setShowcaseEmpty] = useState(false);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    registerDemo(
+      [
+        {
+          id: "showcase-empty",
+          label: showcaseEmpty
+            ? "Showing: empty workspace"
+            : "Showcase empty workspace",
+          active: showcaseEmpty,
+          onClick: () => setShowcaseEmpty((v) => !v),
+        },
+      ],
+      showcaseEmpty
+        ? "Empty ≠ no-results: this forces the unfiltered empty-workspace UI without clearing the seed."
+        : "Search with no matches shows no-results; use Showcase for the empty workspace.",
+    );
+    return () => clearDemo();
+  }, [registerDemo, clearDemo, showcaseEmpty]);
 
   const notes = useMemo(
     () => flattenNotesPages(query.data?.pages),
@@ -40,7 +65,8 @@ export function NotesListPage() {
 
   let emptyMode: "loading" | "empty" | "no-results" | "offline" | "ready" =
     "ready";
-  if (query.isLoading && notes.length === 0 && online) emptyMode = "loading";
+  if (showcaseEmpty) emptyMode = "empty";
+  else if (query.isLoading && notes.length === 0 && online) emptyMode = "loading";
   else if (offlineEmpty) emptyMode = "offline";
   else if (notes.length === 0 && hasActiveFilters) emptyMode = "no-results";
   else if (notes.length === 0) emptyMode = "empty";
