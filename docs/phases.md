@@ -99,9 +99,12 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 
 ### Phase 11 — Sim & tests
 
-1. With API up: `pnpm simulate` — three reviewers finish ~60 notes; scenarios assert 409 merge, reject/resubmit, WS ordering, burst fetches
-2. `pnpm test` — machine + autosave coalesce + queue coalesce + realtime dedupe/cap + redact
-3. `pnpm test:e2e` — Playwright: filter READY → open → Start review → edit → Approve
+1. With API up: `pnpm simulate` — three reviewers finish ~60 notes under chaos; extra scenarios assert 409 merge, **ADMIN edit on REJECTED**, RT-before-ack, burst fetches
+2. `pnpm simulate:scenarios` — overlap / admin+resubmit / WS ordering / burst only (faster)
+3. `pnpm test` — domain (40) + web (9) Vitest
+4. `pnpm test:e2e` — Playwright **7 tests**: smoke, reject, conflict merge, auditor/admin/assignment gates, URL filters
+
+Details: [`12-testing-and-performance.md`](./12-testing-and-performance.md).
 
 ### Phase 12 — Error boundaries
 

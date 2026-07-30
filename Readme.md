@@ -249,16 +249,88 @@ Primary CTAs show their key on the button (green Start review / Approve / Amend;
 | `j` / `k` / `Enter` | Row focus / open note |
 | `Esc` | Close help / conflict |
 
-### Testing — Unit, integration, e2e posture
+### Testing — what we run and why
 
-| Layer | What | Why |
+The assignment ships a **concurrency simulation script** (`simulate_workflow.ts`). We treat that as the **API/integration layer** and surround it with faster **unit** tests and one **E2E** smoke path.
+
+#### Commands
+
+| Command | Scope |
+|---|---|
+| `pnpm test` | Vitest — domain machine (40) + web modules (9) |
+| `pnpm simulate` | Full sim: seed 5k → 3 reviewers × 20 notes under chaos → extra scenarios |
+| `pnpm simulate:scenarios` | Extra scenarios only (overlap, admin edit, RT ordering, burst) |
+| `pnpm test:e2e` | Playwright — 7 browser tests (see below) |
+
+API must be running for `pnpm simulate` (`pnpm dev` or `pnpm dev:api`).
+
+#### 1. Unit tests (Vitest, pure / fast)
+
+| Module | File | What it proves |
 |---|---|---|
-| **Unit** | `noteMachine`, `redactProps`, coalesced saver | Pure invariants + effect scheduling |
-| **Integration** | Dexie queue coalesce/order, realtime dedupe + seen-id cap | Effectful modules without full browser |
-| **API sim** | `simulate_workflow.ts` + overlap / reject-resubmit / RT-before-ack / burst | Assignment + “build your own” scenarios |
-| **E2E smoke** | Playwright filter → open → edit → approve | One critical user path |
+| **State machine** | `packages/domain/src/note-machine/machine.test.ts` | Every transition edge, guards (assigned reviewer, **ADMIN break-glass**, MFA, grace window), `canEditContent`, `getAvailableActions`, server-driven status apply |
+| **Autosave coalesce** | `apps/web/src/features/autosave-note/model/coalesced-saver.test.ts` | ≤1 in-flight save + ≤1 follow-up while typing |
+| **Telemetry redact** | `apps/web/src/shared/telemetry/redact.test.ts` | PII keys stripped before batch POST |
+| **Offline queue** | `apps/web/src/features/offline-queue/model/mutation-queue.test.ts` | Dexie coalesce per note, FIFO drain order |
+| **Realtime reconcile** | `apps/web/src/entities/note/lib/apply-realtime-event.test.ts` | `eventId` dedupe (at-least-once WS); seen-id cap so memory cannot grow forever |
 
-**Chosen not to test exhaustively:** every UI permutation, visual regression, full 100k render timing in CI, literal 20-minute sleep (Dexie durability across reload covers the offline intent).
+These run in CI without a browser or live API.
+
+#### 2. API simulation (`simulate_workflow.ts`) — assignment + “build your own”
+
+Mirrors the PDF’s **three concurrent reviewers** pattern, then adds scenarios the UI must handle:
+
+| Phase | What it exercises |
+|---|---|
+| **Happy path** | Seed → `dr_a` / `dr_b` / `dr_c` each claim READY notes (race-safe), edit SOAP, resolve 409s, approve/reject under injected latency + ~3% 500 + ~2% conflict |
+| **Overlapping editors** | Two saves from the same stale `baseVersionId` → `409 version_conflict` with `current` + `commonAncestor`; merge onto head |
+| **Reject + admin + resubmit** | Reviewer rejects → **ADMIN** supersedes SOAP → clinician stale save gets **409 while still REJECTED** → clinician resubmits |
+| **Realtime before ack** | WS `note.status_changed` may arrive before HTTP transition response — client must reconcile either order |
+| **Burst fetches** | 500 sequential `GET /notes/:id` — load smoke (no crash) |
+
+The sim retries transient 500s (chaos) and uses `clientMutationId` like the SPA.
+
+#### 3. E2E (Playwright) — real browser, slowest, highest confidence
+
+Playwright drives Chromium like a user: clicks, typing, dialogs, navigation. **`pnpm test:e2e`** boots API + Vite automatically (`CHAOS=0` for stability). Tests run **one worker** because the mock API is a single in-memory store.
+
+| File | Test | What only E2E can catch |
+|---|---|---|
+| `smoke.spec.ts` | Approve happy path | Routing, actor menu, filters, autosave timing, MFA confirm |
+| `workflows.spec.ts` | Reject + reason modal | Reject dialog, status badge, read-only after reject |
+| `workflows.spec.ts` | Force conflict → merge | Demo FAB, 409 modal, Resolve & save |
+| `access-control.spec.ts` | Auditor read-only | Capability + SOAP `disabled` in real DOM |
+| `access-control.spec.ts` | Unassigned reviewer | Assignment gate message after actor switch |
+| `access-control.spec.ts` | Admin approves others’ note | ADMIN break-glass in action bar |
+| `access-control.spec.ts` | URL filter deep link | `?status=` survives back navigation |
+
+Shared helpers live in `e2e/helpers.ts` (`actAs`, `claimReadyNote`, etc.).
+
+**Is one smoke test enough?** For a take-home demo, yes as a minimum. For production you’d add more E2E for offline queue, two-tab realtime, and bulk actions — but those are partially covered by Vitest + `simulate_workflow.ts` here.
+
+#### What we deliberately skip
+
+Full UI permutation matrix, visual regression, 100k-row render benchmarks in CI, literal 20-minute offline sleep (Dexie reload + `gcTime` covers offline intent).
+
+See also [`docs/12-testing-and-performance.md`](docs/12-testing-and-performance.md).
+
+### Performance — React Compiler posture & explicit optimizations
+
+**React Compiler:** not enabled in this repo. We use **React 19** with `@vitejs/plugin-react` only. The compiler would auto-memoize components/hooks at build time; here we rely on **structural** optimizations so list/detail stay fast at 100k scale without a Babel compiler pass.
+
+| Technique | Where | Effect |
+|---|---|---|
+| **Route code splitting** | `apps/web/src/app/routes/index.tsx` | `React.lazy` per page (Home, Notes, Detail, Admin) + `Suspense` fallback |
+| **Deferred feature chunks** | `apps/web/src/app/providers/index.tsx` | Conflict merge + telemetry panel lazy-loaded (not on critical path) |
+| **List virtualization** | `widgets/notes-table` + `@tanstack/react-virtual` | Only visible rows mount; 100k notes stay O(viewport) DOM |
+| **Cursor pagination** | `useNotesInfiniteQuery` | Server pages notes; client never holds full dataset |
+| **TanStack Query cache** | `shared/api/query-client.ts` | `staleTime` 30s, `gcTime` 35m (`offlineFirst`) — cached reads survive brief offline |
+| **Scoped WS subscriptions** | `shared/realtime/client.ts` | Subscribe virtualizer-visible ids + open detail only (not all 100k) |
+| **Coalesced autosave** | `features/autosave-note` | Debounce + single in-flight POST reduces network churn |
+| **Stable Zustand selectors** | entities/features | `EMPTY_PRESENCE` sentinel, narrow selectors — fewer wasted renders |
+| **Production chunks** | `pnpm --filter @soulside/web build` | Vite splits routes/features (see `dist/assets/*`) |
+
+**If enabling React Compiler later:** add `babel-plugin-react-compiler` to the Vite React plugin, verify with [eslint-plugin-react-hooks](https://www.npmjs.com/package/eslint-plugin-react-hooks) `react-compiler` rules, and re-run Playwright smoke — most explicit `useMemo` calls could then be removed incrementally.
 
 ### Accessibility — Keyboard, SR, WCAG 2.2 AA
 
@@ -410,6 +482,7 @@ Mapped from *Frontend System Design and Architecture Assignment.pdf*. Status ref
 |---|---|
 | Roles CLINICIAN / REVIEWER / ADMIN / READONLY_AUDITOR | Done |
 | Route / component / action guards; denied ≠ empty | Done |
+| **ADMIN** break-glass: all user transitions + SOAP edit in `IN_REVIEW` | Done |
 | Client auth is UX-only | Done |
 
 ### Dummy backend + simulation

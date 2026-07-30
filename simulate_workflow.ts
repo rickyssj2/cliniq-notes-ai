@@ -338,6 +338,19 @@ async function scenarioRejectResubmitAfterAdminEdit() {
   });
   if (!isOk(adminSave.status)) throw new Error(`admin save ${adminSave.status}`);
 
+  // Stale clinician save while still REJECTED (before resubmit) must 409 — not 403.
+  const stale = await saveVersion(note.id, {
+    baseVersionId: staleBase,
+    content: beforeAdmin.currentVersion.content,
+    clientMutationId: `stale_after_admin_${randomUUID()}`,
+    actorId: "usr_clin_001",
+  });
+  if (stale.status !== 409) {
+    throw new Error(
+      `expected 409 after admin supersede (while REJECTED), got ${stale.status}`,
+    );
+  }
+
   const resub = await transition(note.id, {
     to: "READY_FOR_REVIEW",
     actorId: "usr_clin_001",
@@ -347,16 +360,6 @@ async function scenarioRejectResubmitAfterAdminEdit() {
     throw new Error(`resubmit ${resub.status} ${JSON.stringify(resub.data)}`);
   }
 
-  // Stale save against pre-admin base must conflict (or fail if base unknown).
-  const stale = await saveVersion(note.id, {
-    baseVersionId: staleBase,
-    content: beforeAdmin.currentVersion.content,
-    clientMutationId: `stale_after_admin_${randomUUID()}`,
-    actorId: "usr_clin_001",
-  });
-  if (stale.status !== 409) {
-    throw new Error(`expected 409 after admin supersede, got ${stale.status}`);
-  }
   console.log("[scenario] reject/resubmit/admin OK");
 }
 

@@ -19,6 +19,7 @@ Each architecture doc includes **three** diagram styles so you can pick one:
 | [08-fsd-dependency-map.md](./08-fsd-dependency-map.md) | FSD layers & import rule |
 | [09-adr-index.md](./09-adr-index.md) | 10 tradeoff ADRs |
 | [10-interview-talk-track.md](./10-interview-talk-track.md) | 5-min tour + grill answers |
+| [12-testing-and-performance.md](./12-testing-and-performance.md) | Test pyramid, sim scenarios, perf posture |
 
 ### Images
 
