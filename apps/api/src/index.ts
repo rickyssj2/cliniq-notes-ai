@@ -52,7 +52,7 @@ app.route("/api/telemetry", telemetryRoutes);
 
 // Default seed so the API is usable without a manual seed call
 if (process.env.AUTO_SEED !== "0") {
-  const count = Number(process.env.SEED_COUNT ?? 5000);
+  const count = Number(process.env.SEED_COUNT ?? 100_000);
   store.seed(count, Number(process.env.SEED ?? 42));
   console.log(`[api] auto-seeded ${count} notes`);
 }

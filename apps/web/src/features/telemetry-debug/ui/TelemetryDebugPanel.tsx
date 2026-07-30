@@ -118,7 +118,8 @@ export function TelemetryDebugPanel() {
             </Button>
           </div>
           <p className="text-[10px] text-[var(--muted)]">
-            Counts only — no prop payloads. Watch Network →{" "}
+            Counts only — no prop payloads. Parked rows drain on{" "}
+            <code>online</code> / Flush now (attempts reset). Watch Network →{" "}
             <code>/api/telemetry/batch</code>.
           </p>
         </div>

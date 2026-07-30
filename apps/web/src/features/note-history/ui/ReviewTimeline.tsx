@@ -9,6 +9,7 @@ import type { MutationQueueItem } from "@shared/db";
 
 type Props = {
   note: NoteDetail;
+  variant?: "page" | "sidebar";
 };
 
 type TimelineRow = {
@@ -24,7 +25,8 @@ function statusLabel(s: NoteStatus | null): string {
   return s.replaceAll("_", " ");
 }
 
-export function ReviewTimeline({ note }: Props) {
+export function ReviewTimeline({ note, variant = "page" }: Props) {
+  const sidebar = variant === "sidebar";
   const [pending, setPending] = useState<MutationQueueItem[]>([]);
 
   useEffect(() => {
@@ -88,21 +90,30 @@ export function ReviewTimeline({ note }: Props) {
   }, [note.review.events, pending]);
 
   return (
-    <section className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
-      <div>
+    <section
+      className={
+        sidebar
+          ? "flex h-full min-h-0 flex-col gap-3"
+          : "space-y-3 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4"
+      }
+    >
+      <div className={sidebar ? "shrink-0" : undefined}>
         <h2 className="text-sm font-semibold tracking-wide uppercase">
           Review timeline
         </h2>
         <p className="mt-1 text-xs text-[var(--muted)]">
-          Projection over the review event log. Offline queue items show until
-          the server ack replaces them.
+          Event log projection. Offline queue items show until sync.
         </p>
       </div>
 
       {rows.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">No review events yet.</p>
       ) : (
-        <ol className="relative space-y-0 border-l border-[var(--border)] pl-4">
+        <ol
+          className={`relative space-y-0 border-l border-[var(--border)] pl-4 ${
+            sidebar ? "min-h-0 flex-1 overflow-auto" : ""
+          }`}
+        >
           {rows.map((row) => (
             <li key={row.id} className="relative pb-4 last:pb-0">
               <span

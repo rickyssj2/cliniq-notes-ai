@@ -1,6 +1,6 @@
 # Note lifecycle state machine
 
-Source of truth: `packages/domain/src/note-machine/transitions.ts` (`TRANSITIONS`, 11 edges).
+Source of truth: [`packages/domain/src/note-machine/transitions.ts`](../packages/domain/src/note-machine/transitions.ts) (`TRANSITIONS`, 11 edges).
 
 ## Status diagram
 
@@ -27,12 +27,23 @@ stateDiagram-v2
   LOCKED --> [*]
 ```
 
-## Guard highlights (say these in interview)
+Each arrow is one `TransitionDef` in `TRANSITIONS` (`action`, `from`, `to`, `kind`, `guard`, `effects`).
+
+## Host analogy (React)
+
+| React | This codebase |
+|---|---|
+| **`react`** — pure update rules (no DOM) | **`noteMachine`** — pure lifecycle rules (no HTTP/DOM) |
+| **`react-dom`** — host applying rules to the browser | **`apps/api` + `apps/web`** — hosts applying transitions via REST, WS, Query, UI |
+
+Same machine on API (reject illegal transitions) and web (derive buttons / optimistic intent).
+
+## Guard highlights
 
 | Action | Key guards |
 |---|---|
 | `start_review` | Role `REVIEWER`; assigns actor as reviewer |
-| `approve` | Assigned reviewer; user path requires `mfaVerified` (server source trusts MFA) |
+| `approve` | Assigned reviewer; user path requires `mfaVerified` (`source: "server"` trusts MFA) |
 | `reject` | Assigned reviewer + non-empty `reason` |
 | `amend` | CLINICIAN/ADMIN + within `AMEND_GRACE_MS` (24h) |
 | `grace_expired` | Auto lock after grace; server may force |

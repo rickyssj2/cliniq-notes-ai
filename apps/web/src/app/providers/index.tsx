@@ -10,6 +10,8 @@ import { flush } from "@shared/telemetry";
 import { AppErrorBoundary } from "@shared/ui/error-boundary";
 import { useRealtimeBootstrap } from "@features/realtime-sync";
 import { useOfflineBootstrap } from "@features/offline-queue";
+import { KeyboardShortcutsHost } from "@features/keyboard-shortcuts";
+import { DemoControlsFab } from "@features/demo-controls";
 // Deep import so the debug panel stays out of the eager telemetry chunk.
 import { useTelemetryPageViews } from "@features/telemetry-debug/model/use-page-views";
 
@@ -111,6 +113,8 @@ export function AppProviders({ children }: AppProvidersProps) {
                   <AppErrorBoundary label="app" variant="page">
                     {children}
                   </AppErrorBoundary>
+                  <KeyboardShortcutsHost />
+                  <DemoControlsFab />
                 </TelemetryBootstrap>
               </RealtimeBootstrap>
             </OfflineBootstrap>

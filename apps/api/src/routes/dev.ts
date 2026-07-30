@@ -9,7 +9,7 @@ devRoutes.post("/seed", async (c) => {
     count?: number;
     seed?: number;
   };
-  const count = Math.min(Math.max(body.count ?? 5000, 1), 100_000);
+  const count = Math.min(Math.max(body.count ?? 100_000, 1), 100_000);
   const seed = body.seed ?? 42;
   const result = store.seed(count, seed);
   return c.json({ ok: true, ...result, info: store.info() });

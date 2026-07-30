@@ -40,6 +40,13 @@ const ACTION_LABEL: Record<NoteAction, string> = {
   grace_expired: "Lock",
 };
 
+/** Primary (green) CTAs with keyboard shortcuts. */
+const PRIMARY_ACTIONS = new Set<NoteAction>(["start_review", "approve"]);
+const ACTION_SHORTCUT: Partial<Record<NoteAction, string>> = {
+  start_review: "R",
+  approve: "A",
+};
+
 type Props = {
   note: NoteDetail;
 };
@@ -65,7 +72,6 @@ export function NoteActionBar({ note }: Props) {
     return subscribeQueueStats(refresh);
   }, [note.id]);
 
-  // Clear sticky offline hint once we're online and this note's queue drained.
   useEffect(() => {
     if (online && pendingHere === 0) {
       setQueueHint(null);
@@ -225,30 +231,48 @@ export function NoteActionBar({ note }: Props) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        {actions.map((item) => (
-          <span key={item.action} title={item.enabled ? undefined : item.reason}>
-            <Button
-              type="button"
-              size="sm"
-              variant={item.action === "approve" ? "default" : "outline"}
-              disabled={!item.enabled || busy !== null}
-              onClick={() => void run(item.action)}
+        {actions.map((item) => {
+          const shortcut = ACTION_SHORTCUT[item.action];
+          const primary = PRIMARY_ACTIONS.has(item.action);
+          const label = ACTION_LABEL[item.action] ?? item.action;
+          return (
+            <span
+              key={item.action}
+              title={item.enabled ? undefined : item.reason}
             >
-              {busy === item.action
-                ? "Working…"
-                : ACTION_LABEL[item.action] ?? item.action}
-            </Button>
-          </span>
-        ))}
+              <Button
+                type="button"
+                size="sm"
+                variant={primary ? "default" : "outline"}
+                disabled={!item.enabled || busy !== null}
+                data-shortcut-action={shortcut ?? undefined}
+                onClick={() => void run(item.action)}
+              >
+                {busy === item.action ? (
+                  "Working…"
+                ) : (
+                  <>
+                    {label}
+                    {shortcut && item.enabled ? (
+                      <kbd className="ml-1 rounded bg-black/10 px-1 py-0.5 font-mono text-[10px] opacity-90">
+                        {shortcut}
+                      </kbd>
+                    ) : null}
+                  </>
+                )}
+              </Button>
+            </span>
+          );
+        })}
       </div>
       {queueHint && pendingHere > 0 && (
         <p className="text-sm text-amber-800">{queueHint}</p>
       )}
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
       <p className="text-xs text-[var(--muted)]">
-        Actions come from <code>getAvailableActions</code> — hover disabled
-        buttons for the machine reason. Status changes update the timeline;
-        SOAP saves add version history rows.
+        Primary actions: <kbd className="font-mono">R</kbd> Start review ·{" "}
+        <kbd className="font-mono">A</kbd> Approve. Hover disabled buttons for
+        machine reasons.
       </p>
     </div>
   );

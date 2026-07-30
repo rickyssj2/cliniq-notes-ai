@@ -2,43 +2,47 @@
 
 Server entities do **not** live in Zustand. Dexie is **not** a notes cache — only durable *client intent*.
 
+The four layers you named (Zustand / TanStack Query / Dexie / URL) are the primary stores. Also in the picture: **pure `noteMachine`**, **telemetry in-memory buffer**, and **WebSocket presence/cursor**.
+
 ## Diagram
 
 ```mermaid
 flowchart TB
-  subgraph ephemeral [Ephemeral / navigational]
-    URL["URL search params<br/>filters · sort · search"]
+  subgraph navigational [Navigational]
+    URL["URL search params<br/>filters · sort · search · note id"]
   end
 
-  subgraph client [Client UI state — Zustand]
-    ZS["session/actor · SOAP drafts · selection<br/>presence · conflict modal · connectivity"]
+  subgraph syncClient [Sync client UI — Zustand]
+    ZS["session/actor · SOAP drafts · selection<br/>presence snapshot · conflict modal · connectivity"]
   end
 
-  subgraph serverCache [Server cache — TanStack Query]
-    TQ["notes list/detail/versions<br/>optimistic patches · WS reconcile<br/>gcTime 35m · offlineFirst"]
+  subgraph asyncServer [Async server cache — TanStack Query]
+    TQ["notes list / detail / versions<br/>optimistic patches · WS reconcile<br/>gcTime 35m · offline-first reads"]
   end
 
   subgraph durableIntent [Durable client intent — Dexie]
     MQ["mutationQueue<br/>create_version / transition"]
-    TP["telemetryPark<br/>failed batches after 3 retries"]
+    TP["telemetryPark<br/>failed batches after retries"]
+  end
+
+  subgraph ephemeralWire [Ephemeral / wire]
+    BUF["Telemetry in-memory buffer"]
+    WS["WebSocket cursor + presence"]
   end
 
   subgraph domain [Pure domain — packages/domain]
     SM["noteMachine — no React, no I/O"]
   end
 
-  subgraph wire [Wire]
-    REST[REST]
-    WS[WebSocket]
-  end
-
-  URL --> TQ
-  ZS -->|"draft content / dirty"| TQ
+  URL -->|"query key inputs"| TQ
+  ZS -->|"draft / dirty"| TQ
   ZS -->|"can / getAvailableActions"| SM
-  TQ --> REST
-  MQ -->|"drain on reconnect"| REST
-  TP -->|"replay flush"| REST
-  WS -->|"status_changed / version_added"| TQ
+  TQ --> REST[REST]
+  MQ -->|"drain on online"| REST
+  BUF -->|"flush"| REST
+  BUF -.->|"park after N fails"| TP
+  TP -->|"replay on online / flush"| REST
+  WS -->|"status / version / presence"| TQ
   WS -->|"dirty + foreign version → merge"| ZS
 ```
 
@@ -51,8 +55,9 @@ flowchart TB
 | Dirty SOAP draft | Zustand | Local typing; coalesced before POST |
 | List filters | URL | Shareable / deep-linkable |
 | Pending save while offline | Dexie `mutationQueue` | Survives reload; outbox pattern |
-| Parked telemetry | Dexie `telemetryPark` | Survive failed flushes |
+| Parked telemetry | Dexie `telemetryPark` | Survive failed flushes; drain on `online` |
 | Legal transitions | `noteMachine` | Single source of truth |
+| Live presence / WS cursor | Zustand snapshot + WS client | Ephemeral fan-in into Query |
 
 ## Anti-patterns we avoided
 
@@ -65,3 +70,4 @@ flowchart TB
 - `apps/web/src/shared/api/query-client.ts` — `gcTime: 35m`, mutations `retry: false`
 - `apps/web/src/features/offline-queue/`
 - `apps/web/src/features/edit-soap/` + `autosave-note/`
+- `apps/web/src/shared/telemetry/client.ts`

@@ -169,7 +169,8 @@ export function NotesTable({
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
       <div className="grid grid-cols-[2.5rem_1.2fr_1fr_1fr_1fr_7rem] gap-2 border-b border-[var(--border)] bg-stone-50 px-3 py-2">
-        <label className="flex items-center justify-center">
+        <label className="relative flex items-center justify-center">
+          <span className="sr-only">Select all loaded notes</span>
           <input
             type="checkbox"
             checked={allVisibleSelected}
@@ -179,7 +180,6 @@ export function NotesTable({
                 e.target.checked,
               )
             }
-            aria-label="Select all loaded notes"
           />
         </label>
         <span className="text-xs font-semibold tracking-wide text-[var(--muted)] uppercase">
@@ -221,8 +221,10 @@ export function NotesTable({
             return (
               <div
                 key={note.id}
+                data-note-row
+                tabIndex={0}
                 className={cn(
-                  "absolute left-0 grid w-full grid-cols-[2.5rem_1.2fr_1fr_1fr_1fr_7rem] items-center gap-2 border-b border-[var(--border)]/70 px-3 text-sm",
+                  "absolute left-0 grid w-full grid-cols-[2.5rem_1.2fr_1fr_1fr_1fr_7rem] items-center gap-2 border-b border-[var(--border)]/70 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-inset",
                   selected && "bg-teal-50/60",
                 )}
                 style={{
@@ -230,12 +232,14 @@ export function NotesTable({
                   transform: `translateY(${row.start}px)`,
                 }}
               >
-                <label className="flex items-center justify-center">
+                <label className="relative flex items-center justify-center">
+                  <span className="sr-only">
+                    Select {note.patient.displayName}
+                  </span>
                   <input
                     type="checkbox"
                     checked={selected}
                     onChange={() => toggle(note.id)}
-                    aria-label={`Select ${note.id}`}
                   />
                 </label>
                 <div className="min-w-0">

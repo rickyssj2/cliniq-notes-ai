@@ -46,9 +46,10 @@ export function NotesFilters({ filters, onChange, onClear }: Props) {
       <label className="block text-sm">
         Search patient / content
         <input
+          id="notes-search"
           value={searchDraft}
           onChange={(e) => setSearchDraft(e.target.value)}
-          placeholder="Debounced server search…"
+          placeholder="Debounced server search… (/ to focus)"
           className="mt-1 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
         />
       </label>

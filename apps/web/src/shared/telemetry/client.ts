@@ -68,7 +68,7 @@ export async function flush(reason = "manual"): Promise<void> {
   ensureBooted();
   if (flushing) return;
   if (buffer.length === 0) {
-    await replayParked();
+    await replayParked({ force: reason === "online" || reason === "manual" });
     return;
   }
 
@@ -93,7 +93,7 @@ export async function flush(reason = "manual"): Promise<void> {
       lastBatchId: batchId,
       lastError: null,
     });
-    await replayParked();
+    await replayParked({ force: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "flush_failed";
     patchTelemetryStats({ lastError: message });
@@ -182,15 +182,28 @@ async function parkBatch(
   patchTelemetryStats({ parkedBatches: parked });
 }
 
-async function replayParked() {
+/**
+ * Replay Dexie-parked batches. `force` resets per-row attempt counters so a
+ * reconnect (or manual Flush) can drain rows that previously hit the retry cap
+ * while the API/chaos was still failing.
+ */
+async function replayParked(opts: { force?: boolean } = {}) {
   await db.open();
   const rows = await db.telemetryPark.orderBy("createdAt").toArray();
   for (const row of rows) {
-    if (row.attempts >= MAX_SEND_ATTEMPTS) {
-      // Leave parked for debug inspection; stop hammering.
+    if (row.id == null) continue;
+
+    if (opts.force && row.attempts > 0) {
+      await db.telemetryPark.update(row.id, { attempts: 0 });
+      row.attempts = 0;
+    }
+
+    // Soft cap: skip this pass only (do not abandon forever). Online/manual
+    // flush uses force=true and resets attempts first.
+    if (!opts.force && row.attempts >= MAX_SEND_ATTEMPTS) {
       continue;
     }
-    if (row.id == null) continue;
+
     try {
       await sendBatch(row.batchId, row.events as TelemetryEvent[], false);
       await db.telemetryPark.delete(row.id);
@@ -229,16 +242,23 @@ function onPageHide() {
   void flush("unload");
 }
 
+function onOnline() {
+  void flush("online");
+}
+
 function ensureBooted() {
   if (booted || typeof window === "undefined") return;
   booted = true;
   document.addEventListener("visibilitychange", onVisibilityChange);
   window.addEventListener("pagehide", onPageHide);
   window.addEventListener("beforeunload", onPageHide);
+  window.addEventListener("online", onOnline);
   void (async () => {
     await db.open();
     patchTelemetryStats({ parkedBatches: await db.telemetryPark.count() });
-    await replayParked();
+    if (navigator.onLine) {
+      await replayParked({ force: true });
+    }
   })();
 }
 

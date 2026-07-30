@@ -1,0 +1,121 @@
+# Build phases & Try-in-UI guides
+
+Incremental delivery history for this take-home. Product docs stay in [`../Readme.md`](../Readme.md); this file is the phase checklist and browser walkthroughs.
+
+## Phase status
+
+- [x] Phase 0 — Scaffold & contracts
+- [x] Phase 1 — Domain state machine
+- [x] Phase 2 — Dummy backend (+ API Lab UI at `/lab`)
+- [x] Phase 3 — Auth shell + Query plumbing
+- [x] Phase 4 — Virtualized notes list
+- [x] Phase 5 — Note detail + SOAP editor
+- [x] Phase 6 — Autosave & conflicts
+- [x] Phase 7 — Real-time
+- [x] Phase 8 — Offline queue
+- [x] Phase 9 — Version history
+- [x] Phase 10 — Telemetry
+- [x] Phase 11 — Simulation, tests, README polish
+- [x] Phase 12 — Error boundaries (`react-error-boundary`) + global/Query reporters
+- [x] Phase 13 — Correlation IDs (HTTP / telemetry / WS) + tiny `shared/logging`
+
+## Try in UI
+
+### Phase 2 — API Lab
+
+1. Run `pnpm dev`, open [http://localhost:5173/lab](http://localhost:5173/lab)
+2. Click **Seed** (e.g. 500), then **List notes**
+3. **Connect WS**, then **Pick READY note** (or click a row)
+4. **Start review** → **Save version** → **Force 409 conflict** → **Approve** or **Reject**
+5. Watch the event log for HTTP results and live `note.*` WebSocket messages
+6. Toggle **Chaos** ON to feel latency / occasional 500s
+
+### Phase 3 — Roles & guards
+
+1. Open [http://localhost:5173](http://localhost:5173) — use **Act as** in the header to switch roles
+2. As **Auditor Lee**: Notes works. Admin / API Lab show **Permission denied**. Nav items are struck through with hover reasons. On Notes, bulk actions are disabled with a reason tooltip
+3. As **Dr. A (REVIEWER)**: Notes + Lab open; Admin stays denied; bulk assign enables
+4. As **Admin Kim**: Admin + Lab all open
+5. Reload the page — the selected actor persists (Zustand + localStorage)
+
+### Phase 4 — Virtualized list
+
+1. Ensure API is running (auto-seeds 100k notes by default). Open [http://localhost:5173/notes](http://localhost:5173/notes)
+2. Scroll the list — more pages load; footer shows loaded / matching counts
+3. Toggle status chips, search (debounced), reviewer, dates — URL updates; copy/paste the URL to deep-link
+4. Click column headers (Status / Updated / Created) to sort
+5. Select rows across scroll; use **Start review** / **Request regeneration** on the sticky bulk bar (as REVIEWER/ADMIN)
+6. Clear filters vs search with no matches — empty workspace vs **no results** messaging differ
+7. Click a patient name → detail (or use `j`/`k`/`Enter`)
+
+### Phase 5 — Note detail
+
+1. From `/notes`, open a `READY_FOR_REVIEW` note as **Dr. A**
+2. Action bar shows **Start review** (from `getAvailableActions`). Start it — status becomes `IN_REVIEW`
+3. Edit SOAP sections — each dirty section gets a **Dirty** badge; **Save draft** enables
+4. Save (`⌘/Ctrl+S` or button) — revision bumps; dirty badges clear
+5. Try **Approve** (confirm = mock MFA) or **Reject** (reason prompt)
+6. Open a `LOCKED` note — editor read-only + lock message
+7. As **Auditor Lee**, open any note — SOAP read-only (no `mutate_workflow`)
+
+### Phase 6 — Autosave & conflicts
+
+1. Open an `IN_REVIEW` note as **Dr. A**. Edit SOAP — watch status flip to dirty, then **Saving…** (~800ms), then **Saved**
+2. Type quickly — saves coalesce (one in-flight POST; at most one follow-up)
+3. Arm **Force conflict on next save**, edit, wait for autosave → three-way merge modal
+4. Pick sections → **Resolve & save** — revision advances; idempotent `clientMutationId`
+5. **Fail next save (500)** then edit — optimistic paint rolls back; Retry reuses the same mutation id
+6. List filters survive detail ↔ back (search params preserved on Links)
+
+### Phase 7 — Real-time
+
+1. Open `/notes` — header badge should read **Live**
+2. Open the same `IN_REVIEW` note in two browser tabs (optionally different actors via **Act as**)
+3. In tab A, transition / edit+save — tab B list status chip and detail update without refresh; presence avatars appear
+4. In tab A, edit SOAP and leave dirty; in tab B save a different edit — tab A opens the three-way conflict merge UI
+5. Kill the API briefly — badge shows **Reconnecting…**, then **Live**; missed events replay via `lastEventId`
+
+### Phase 8 — Offline queue
+
+1. Browse `/notes` while online, open an `IN_REVIEW` note
+2. DevTools → Network → **Offline** — header badge flips to **Offline**, amber banner appears
+3. Edit SOAP — autosave enqueues to IndexedDB; button may show **Queued**
+4. ← Notes — cached list still shows; opening an uncached note shows **You’re offline**
+5. Reload while still offline — queued content restores from Dexie; pending count survives
+6. Go online — banner **Back online · syncing…**, queue drains, revision bumps
+
+### Phase 9 — History & timeline
+
+1. Open a note with multiple revisions (save a few SOAP edits while `IN_REVIEW`)
+2. In **Version history**, click two revisions — SOAP word-diff appears (older → newer)
+3. Run a transition — **Review timeline** shows the status edge
+4. DevTools Offline → queue a transition or save — timeline shows an amber **Optimistic** row until sync
+
+### Phase 10 — Telemetry
+
+1. Bottom-right **Telemetry** (dev only) — open panel; counts for buffered / flushed / parked
+2. **Emit sample** — Network → `POST /api/telemetry/batch`; body has `content`/`S` as `[redacted]`
+3. Edit SOAP / run a transition — events batch (~4s or 20 events); **Flush now** to force send
+4. **Fail ×3 + flush** — after 3 injected 500s the batch parks in IndexedDB; **Flush now** or go online again replays (attempts reset)
+5. Hard-refresh mid-buffer — `sendBeacon` / keepalive flush; parked rows survive reload
+
+### Phase 11 — Sim & tests
+
+1. With API up: `pnpm simulate` — three reviewers finish ~60 notes; scenarios assert 409 merge, reject/resubmit, WS ordering, burst fetches
+2. `pnpm test` — machine + autosave coalesce + queue coalesce + realtime dedupe/cap + redact
+3. `pnpm test:e2e` — Playwright: filter READY → open → Start review → edit → Approve
+
+### Phase 12 — Error boundaries
+
+1. Home (dev): **Throw page render error** — header stays; page fallback; Telemetry shows `ui.error` with `source: render`
+2. Home: **Fire unhandled rejection** — console + `ui.error` with `source: unhandledrejection`
+3. Open an `IN_REVIEW` note → **Throw SOAP panel error** — only the SOAP card falls back
+4. Same note → **Throw page error** — whole outlet fallback; navigate away or Try again
+
+### Phase 13 — Correlation IDs
+
+1. Open an `IN_REVIEW` note and edit SOAP — Network version POST shows `X-Correlation-Id` (e.g. `save_…`); response echoes it
+2. Telemetry panel → **Last corr** updates; after flush, batch event props include the same `correlationId`
+3. Transition — Network + Telemetry share a `transition_…` id; console `[log:info]` lines carry it
+4. With WS connected, save again — console `realtime.echo` logs the same id on the inbound event
+5. Navigate Home ↔ notes — each route change mints a `page_…` id on `page.view`

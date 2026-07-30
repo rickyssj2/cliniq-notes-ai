@@ -1,0 +1,79 @@
+import { useEffect } from "react";
+import { Button } from "@shared/ui/button";
+import {
+  TOGGLE_DEMO_EVENT,
+  useDemoControlsStore,
+} from "../model/store";
+
+/**
+ * Floating demo toolbar (DEV). Toggle with `D` or the FAB button.
+ * Page-scoped actions register via `useDemoControlsStore.register`.
+ */
+export function DemoControlsFab() {
+  const open = useDemoControlsStore((s) => s.open);
+  const setOpen = useDemoControlsStore((s) => s.setOpen);
+  const toggle = useDemoControlsStore((s) => s.toggle);
+  const controls = useDemoControlsStore((s) => s.controls);
+  const message = useDemoControlsStore((s) => s.message);
+
+  useEffect(() => {
+    const onToggle = () => toggle();
+    window.addEventListener(TOGGLE_DEMO_EVENT, onToggle);
+    return () => window.removeEventListener(TOGGLE_DEMO_EVENT, onToggle);
+  }, [toggle]);
+
+  if (!import.meta.env.DEV) return null;
+
+  return (
+    <div className="fixed bottom-3 left-3 z-40 flex max-w-[min(100vw-1.5rem,22rem)] flex-col items-start gap-2">
+      {open && (
+        <div className="w-full space-y-2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-3 text-xs shadow-lg">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold tracking-wide uppercase text-[var(--muted)]">
+              Demo controls
+            </p>
+            <kbd className="rounded border border-[var(--border)] bg-stone-50 px-1.5 py-0.5 font-mono text-[10px]">
+              D
+            </kbd>
+          </div>
+          {controls.length === 0 ? (
+            <p className="text-[var(--muted)]">
+              No demo actions on this page. Open a note for conflict / fail-next
+              / boundary throws.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {controls.map((c) => (
+                <Button
+                  key={c.id}
+                  type="button"
+                  size="sm"
+                  variant={c.active ? "default" : "outline"}
+                  className="justify-start"
+                  onClick={c.onClick}
+                >
+                  {c.label}
+                </Button>
+              ))}
+            </div>
+          )}
+          {message && (
+            <p className="text-[var(--muted)]">{message}</p>
+          )}
+          <p className="text-[10px] text-[var(--muted)]">
+            DevTools → Network → Offline still works for queue demos. Press{" "}
+            <kbd className="font-mono">D</kbd> to hide.
+          </p>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-[11px] font-medium shadow-sm hover:bg-stone-50"
+        title="Demo controls (D)"
+      >
+        {open ? "Hide demo" : "Demo · D"}
+      </button>
+    </div>
+  );
+}

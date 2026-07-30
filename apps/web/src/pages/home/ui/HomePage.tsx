@@ -1,13 +1,46 @@
+import { useEffect } from "react";
 import { Link } from "react-router";
 import { useActor } from "@entities/user";
+import { useDemoControlsStore } from "@features/demo-controls";
 import { Button } from "@shared/ui/button";
-import { DevThrowRenderButton } from "@shared/ui/dev-throw-render-button";
+import {
+  DevThrowRenderButton,
+  requestDevThrow,
+} from "@shared/ui/dev-throw-render-button";
 
 export function HomePage() {
   const actor = useActor();
+  const register = useDemoControlsStore((s) => s.register);
+  const clear = useDemoControlsStore((s) => s.clear);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    register([
+      {
+        id: "throw-home",
+        label: "Throw page render error",
+        onClick: () => requestDevThrow("home-page"),
+      },
+      {
+        id: "unhandled",
+        label: "Fire unhandled rejection",
+        onClick: () => {
+          void Promise.reject(
+            new Error("Dev: intentional unhandled rejection"),
+          );
+        },
+      },
+    ]);
+    return () => clear();
+  }, [register, clear]);
 
   return (
     <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-3xl flex-col justify-center gap-6 px-6 py-16">
+      <DevThrowRenderButton
+        id="home-page"
+        hidden
+        message="Dev: intentional render crash"
+      />
       <p className="text-sm font-medium tracking-[0.18em] text-[var(--muted)] uppercase">
         Soulside AI
       </p>
@@ -44,25 +77,25 @@ export function HomePage() {
           >
             API Lab
           </Link>{" "}
-          — not available to READONLY_AUDITOR
+          — optional REST/WS console (see README)
         </li>
       </ul>
       {import.meta.env.DEV ? (
-        <div className="flex flex-wrap gap-2 border-t border-[var(--border)] pt-6">
-          <DevThrowRenderButton label="Throw page render error" />
+        <p className="border-t border-[var(--border)] pt-6 text-xs text-[var(--muted)]">
+          Dev demos live in the bottom-left{" "}
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => {
-              void Promise.reject(
-                new Error("Dev: intentional unhandled rejection (Phase 12)"),
-              );
-            }}
+            className="mx-1 inline-flex"
+            onClick={() =>
+              window.dispatchEvent(new Event("soulside:toggle-demo"))
+            }
           >
-            Fire unhandled rejection
-          </Button>
-        </div>
+            Demo · D
+          </Button>{" "}
+          bar. Press <kbd className="font-mono">?</kbd> for all shortcuts.
+        </p>
       ) : null}
     </main>
   );

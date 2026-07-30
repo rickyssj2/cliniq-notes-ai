@@ -15,13 +15,16 @@ type VersionMeta = NoteDetail["versions"][number];
 
 type Props = {
   note: NoteDetail;
+  /** Narrow column layout for note-detail sidebars. */
+  variant?: "page" | "sidebar";
 };
 
 /**
  * Pick up to two versions from the sidebar → word-level SOAP diff.
  * First click = base (older), second = compare (newer); third resets.
  */
-export function NoteHistoryPanel({ note }: Props) {
+export function NoteHistoryPanel({ note, variant = "page" }: Props) {
+  const sidebar = variant === "sidebar";
   const versions = useMemo(
     () => [...note.versions].sort((a, b) => b.revision - a.revision),
     [note.versions],
@@ -74,19 +77,36 @@ export function NoteHistoryPanel({ note }: Props) {
   const headQ = useNoteVersionQuery(note.id, ordered.head?.id ?? null);
 
   return (
-    <section className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
-      <div>
+    <section
+      className={
+        sidebar
+          ? "flex h-full min-h-0 flex-col gap-3"
+          : "space-y-4 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4"
+      }
+    >
+      <div className={sidebar ? "shrink-0" : undefined}>
         <h2 className="text-sm font-semibold tracking-wide uppercase">
           Version history
         </h2>
         <p className="mt-1 text-xs text-[var(--muted)]">
-          Select two revisions to diff SOAP sections (word-level). Current head
-          is marked.
+          Select two revisions to diff SOAP (word-level).
         </p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[14rem_1fr]">
-        <ul className="max-h-72 space-y-1 overflow-auto rounded border border-[var(--border)] p-2">
+      <div
+        className={
+          sidebar
+            ? "flex min-h-0 flex-1 flex-col gap-3"
+            : "grid gap-4 lg:grid-cols-[14rem_1fr]"
+        }
+      >
+        <ul
+          className={
+            sidebar
+              ? "max-h-48 shrink-0 space-y-1 overflow-auto rounded border border-[var(--border)] p-2"
+              : "max-h-72 space-y-1 overflow-auto rounded border border-[var(--border)] p-2"
+          }
+        >
           {versions.map((v) => (
             <VersionRow
               key={v.id}
@@ -105,12 +125,18 @@ export function NoteHistoryPanel({ note }: Props) {
           )}
         </ul>
 
-        <div className="min-h-[12rem]">
+        <div
+          className={
+            sidebar
+              ? "min-h-0 flex-1 overflow-auto"
+              : "min-h-[12rem]"
+          }
+        >
           {!ordered.base || !ordered.head ? (
-            <div className="flex h-full items-center justify-center rounded border border-dashed border-[var(--border)] px-4 py-10 text-center text-sm text-[var(--muted)]">
+            <div className="flex h-full min-h-[6rem] items-center justify-center rounded border border-dashed border-[var(--border)] px-3 py-6 text-center text-xs text-[var(--muted)]">
               {leftId
-                ? "Pick a second revision to compare"
-                : "Pick two revisions from the list"}
+                ? "Pick a second revision"
+                : "Pick two revisions"}
             </div>
           ) : baseQ.isLoading || headQ.isLoading ? (
             <div className="animate-pulse space-y-2 p-2">
@@ -123,14 +149,13 @@ export function NoteHistoryPanel({ note }: Props) {
               {!navigator.onLine ? " (offline — open while online first)" : ""}.
             </p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-xs text-[var(--muted)]">
-                Comparing rev {ordered.base.revision} → rev{" "}
-                {ordered.head.revision}
+                Rev {ordered.base.revision} → {ordered.head.revision}
                 {" · "}
-                <span className="text-rose-700">removed</span>
+                <span className="text-rose-700">−</span>
                 {" / "}
-                <span className="text-emerald-800">added</span>
+                <span className="text-emerald-800">+</span>
               </p>
               {SECTIONS.map(({ key, label }) => (
                 <div key={key} className="space-y-1">

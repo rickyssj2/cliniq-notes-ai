@@ -26,9 +26,14 @@ import {
   type CreateVersionPayload,
 } from "@features/offline-queue";
 import { NoteHistoryPanel, ReviewTimeline } from "@features/note-history";
+import { useDemoControlsStore } from "@features/demo-controls";
 import { Button } from "@shared/ui/button";
 import { AppErrorBoundary } from "@shared/ui/error-boundary";
-import { DevThrowRenderButton } from "@shared/ui/dev-throw-render-button";
+import {
+  DevThrowRenderButton,
+  requestDevThrow,
+} from "@shared/ui/dev-throw-render-button";
+import { cn } from "@shared/lib";
 
 type Props = {
   note: NoteDetail;
@@ -44,6 +49,8 @@ function saveLabel(status: string, dirty: boolean, pending: number): string {
   return "Saved";
 }
 
+type MobilePanel = "none" | "timeline" | "history";
+
 export function NoteWorkspace({ note }: Props) {
   const actor = useActor();
   const location = useLocation();
@@ -57,9 +64,12 @@ export function NoteWorkspace({ note }: Props) {
     (s) => s.byNoteId[note.id] ?? EMPTY_PRESENCE,
   );
   const [autosaveOn, setAutosaveOn] = useState(true);
-  const [demoMsg, setDemoMsg] = useState<string | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("none");
   const online = useEffectiveOnline();
   const pendingAll = usePendingMutationCount();
+  const registerDemo = useDemoControlsStore((s) => s.register);
+  const clearDemo = useDemoControlsStore((s) => s.clear);
+  const setDemoMessage = useDemoControlsStore((s) => s.setMessage);
 
   useNotePresenceChannel(note.id);
 
@@ -94,157 +104,230 @@ export function NoteWorkspace({ note }: Props) {
     enabled: autosaveOn && !readOnly && !conflictOpen,
   });
 
-  return (
-    <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <Link
-            to={{ pathname: "/notes", search: location.search }}
-            className="text-sm text-[var(--accent)] underline-offset-4 hover:underline"
-          >
-            ← Notes
-          </Link>
-          <p className="text-sm font-medium tracking-[0.16em] text-[var(--muted)] uppercase">
-            Phase 9 · History
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {note.patient.displayName}
-          </h1>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
-            <NoteStatusBadge status={note.status} />
-            <PresenceAvatars viewers={viewers} excludeUserId={actor.id} />
-            <span>
-              Rev {note.currentVersion.revision} ·{" "}
-              <code className="text-xs">{note.id}</code>
-            </span>
-            {note.assignedReviewer && (
-              <span>Reviewer: {note.assignedReviewer.displayName}</span>
-            )}
-            {pendingAll > 0 && (
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-900 uppercase">
-                {pendingAll} queued
-              </span>
-            )}
-          </div>
-        </div>
+  useEffect(() => {
+    if (readOnly) {
+      registerDemo([
+        {
+          id: "throw-page",
+          label: "Throw page error",
+          onClick: () => requestDevThrow("note-page"),
+        },
+      ]);
+      return () => clearDemo();
+    }
 
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
-              <input
-                type="checkbox"
-                checked={autosaveOn}
-                disabled={readOnly}
-                onChange={(e) => setAutosaveOn(e.target.checked)}
-              />
-              Autosave
-            </label>
-            <Button
-              type="button"
-              size="sm"
-              disabled={
-                readOnly ||
-                (!dirty && autosave.status !== "error") ||
-                autosave.status === "saving" ||
-                !!conflictOpen
-              }
-              onClick={() => void autosave.saveNow()}
-            >
-              {saveLabel(autosave.status, dirty, pendingAll)}
-            </Button>
-          </div>
-          <p className="text-xs text-[var(--muted)]">
-            {readOnly
-              ? "Read-only for this status/role"
-              : conflictOpen
-                ? "Resolve the conflict modal to continue"
-                : autosave.status === "saving"
-                  ? "Coalesced save in flight…"
-                  : dirty
-                    ? autosaveOn
-                      ? online
-                        ? "Dirty — autosave in ~800ms"
-                        : "Dirty — will queue offline (~800ms)"
-                      : "Unsaved section edits"
-                    : pendingAll > 0
-                      ? "Locally clean · waiting for sync"
-                      : autosave.status === "saved"
-                        ? "All sections clean"
-                        : "No local changes"}
-          </p>
-          {autosave.lastError && autosave.status === "error" && (
-            <p className="max-w-sm text-right text-xs text-[var(--danger)]">
-              {autosave.lastError}
-            </p>
-          )}
-        </div>
+    registerDemo([
+      {
+        id: "force-conflict",
+        label: autosave.forceConflictNext
+          ? "Armed: next save → 409"
+          : "Force conflict on next save",
+        active: autosave.forceConflictNext,
+        onClick: () =>
+          autosave.setForceConflictNext(!autosave.forceConflictNext),
+      },
+      {
+        id: "fail-next",
+        label: "Fail next save (500)",
+        onClick: () => {
+          void setDevFailNext({ versions: 1 }).then(() =>
+            setDemoMessage("Next version POST will 500 (rollback optimism)"),
+          );
+        },
+      },
+      {
+        id: "throw-soap",
+        label: "Throw SOAP panel error",
+        onClick: () => requestDevThrow("soap-panel"),
+      },
+      {
+        id: "throw-page",
+        label: "Throw page error",
+        onClick: () => requestDevThrow("note-page"),
+      },
+    ]);
+    return () => clearDemo();
+  }, [
+    readOnly,
+    registerDemo,
+    clearDemo,
+    setDemoMessage,
+    autosave.forceConflictNext,
+    autosave.setForceConflictNext,
+  ]);
+
+  const modKey =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad/.test(navigator.platform)
+      ? "⌘"
+      : "Ctrl";
+
+  return (
+    <div className="mx-auto max-w-[90rem] px-4 py-6 sm:px-6">
+      <DevThrowRenderButton
+        id="note-page"
+        hidden
+        message="Dev: intentional page crash"
+      />
+
+      {/* Mobile panel toggles */}
+      <div className="mb-4 flex flex-wrap gap-2 xl:hidden">
+        <Button
+          type="button"
+          size="sm"
+          variant={mobilePanel === "timeline" ? "default" : "outline"}
+          onClick={() =>
+            setMobilePanel((p) => (p === "timeline" ? "none" : "timeline"))
+          }
+        >
+          Timeline
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={mobilePanel === "history" ? "default" : "outline"}
+          onClick={() =>
+            setMobilePanel((p) => (p === "history" ? "none" : "history"))
+          }
+        >
+          History
+        </Button>
       </div>
 
-      <NoteActionBar note={note} />
-
-      <AppErrorBoundary label="soap-editor" variant="panel">
-        <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
-          <h2 className="mb-4 text-sm font-semibold tracking-wide uppercase">
-            SOAP
-          </h2>
-          <SoapEditor noteId={note.id} readOnly={readOnly || !!conflictOpen} />
-          <div className="mt-3">
-            <DevThrowRenderButton label="Throw SOAP panel error" />
-          </div>
-        </section>
-      </AppErrorBoundary>
-
-      <AppErrorBoundary label="note-history" variant="panel">
-        <NoteHistoryPanel note={note} />
-      </AppErrorBoundary>
-      <AppErrorBoundary label="review-timeline" variant="panel">
-        <ReviewTimeline note={note} />
-      </AppErrorBoundary>
-
-      {!readOnly && (
-        <section className="space-y-3 rounded-lg border border-dashed border-[var(--border)] bg-[var(--card)] p-4">
-          <h2 className="text-sm font-semibold tracking-wide uppercase">
-            Demo controls
-          </h2>
-          <p className="text-xs text-[var(--muted)]">
-            Use DevTools → Network → Offline to queue saves. Reload while
-            offline, then go online — watch the banner drain the queue.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={autosave.forceConflictNext ? "default" : "outline"}
-              onClick={() =>
-                autosave.setForceConflictNext(!autosave.forceConflictNext)
-              }
-            >
-              {autosave.forceConflictNext
-                ? "Armed: next save → 409"
-                : "Force conflict on next save"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                void setDevFailNext({ versions: 1 }).then(() =>
-                  setDemoMsg("Next version POST will 500 (rollback optimism)"),
-                )
-              }
-            >
-              Fail next save (500)
-            </Button>
-            <DevThrowRenderButton
-              label="Throw page error"
-              message="Dev: intentional page crash (Phase 12)"
-            />
-          </div>
-          {demoMsg && (
-            <p className="text-xs text-[var(--muted)]">{demoMsg}</p>
+      <div className="grid gap-6 xl:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)_minmax(16rem,20rem)]">
+        {/* Left: timeline sidebar */}
+        <aside
+          className={cn(
+            "xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:self-start",
+            "rounded-lg border border-[var(--border)] bg-[var(--card)] p-4",
+            mobilePanel === "timeline" ? "block" : "hidden xl:block",
           )}
-        </section>
-      )}
+        >
+          <AppErrorBoundary label="review-timeline" variant="panel">
+            <ReviewTimeline note={note} variant="sidebar" />
+          </AppErrorBoundary>
+        </aside>
+
+        {/* Center: editor */}
+        <div className="min-w-0 space-y-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-2">
+              <Link
+                to={{ pathname: "/notes", search: location.search }}
+                className="text-sm text-[var(--accent)] underline-offset-4 hover:underline"
+              >
+                ← Notes
+              </Link>
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                {note.patient.displayName}
+              </h1>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
+                <NoteStatusBadge status={note.status} />
+                <PresenceAvatars viewers={viewers} excludeUserId={actor.id} />
+                <span>
+                  Rev {note.currentVersion.revision} ·{" "}
+                  <code className="text-xs">{note.id}</code>
+                </span>
+                {note.assignedReviewer && (
+                  <span>Reviewer: {note.assignedReviewer.displayName}</span>
+                )}
+                {pendingAll > 0 && (
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-900 uppercase">
+                    {pendingAll} queued
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                  <input
+                    type="checkbox"
+                    checked={autosaveOn}
+                    disabled={readOnly}
+                    onChange={(e) => setAutosaveOn(e.target.checked)}
+                  />
+                  Autosave
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  data-shortcut-save
+                  disabled={
+                    readOnly ||
+                    (!dirty && autosave.status !== "error") ||
+                    autosave.status === "saving" ||
+                    !!conflictOpen
+                  }
+                  onClick={() => void autosave.saveNow()}
+                >
+                  {saveLabel(autosave.status, dirty, pendingAll)}
+                  <kbd className="ml-1 rounded bg-black/10 px-1 py-0.5 font-mono text-[10px] opacity-90">
+                    {modKey}S
+                  </kbd>
+                </Button>
+              </div>
+              <p className="text-xs text-[var(--muted)]">
+                {readOnly
+                  ? "Read-only for this status/role"
+                  : conflictOpen
+                    ? "Resolve the conflict modal to continue"
+                    : autosave.status === "saving"
+                      ? "Coalesced save in flight…"
+                      : dirty
+                        ? autosaveOn
+                          ? online
+                            ? "Dirty — autosave in ~800ms"
+                            : "Dirty — will queue offline (~800ms)"
+                          : "Unsaved section edits"
+                        : pendingAll > 0
+                          ? "Locally clean · waiting for sync"
+                          : autosave.status === "saved"
+                            ? "All sections clean"
+                            : "No local changes"}
+              </p>
+              {autosave.lastError && autosave.status === "error" && (
+                <p className="max-w-sm text-right text-xs text-[var(--danger)]">
+                  {autosave.lastError}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <NoteActionBar note={note} />
+
+          <AppErrorBoundary label="soap-editor" variant="panel">
+            <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+              <h2 className="mb-4 text-sm font-semibold tracking-wide uppercase">
+                SOAP
+              </h2>
+              <SoapEditor
+                noteId={note.id}
+                readOnly={readOnly || !!conflictOpen}
+              />
+              <DevThrowRenderButton
+                id="soap-panel"
+                hidden
+                message="Dev: intentional SOAP panel crash"
+              />
+            </section>
+          </AppErrorBoundary>
+        </div>
+
+        {/* Right: version history sidebar */}
+        <aside
+          className={cn(
+            "xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:self-start",
+            "rounded-lg border border-[var(--border)] bg-[var(--card)] p-4",
+            mobilePanel === "history" ? "block" : "hidden xl:block",
+          )}
+        >
+          <AppErrorBoundary label="note-history" variant="panel">
+            <NoteHistoryPanel note={note} variant="sidebar" />
+          </AppErrorBoundary>
+        </aside>
+      </div>
     </div>
   );
 }
