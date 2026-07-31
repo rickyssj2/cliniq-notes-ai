@@ -1,36 +1,7 @@
 # State layers — where each kind of state lives
 
-Server entities do **not** live in Zustand. Dexie is **not** a notes cache — only durable *client intent*.
+Server state in TanStack Query, Client State in Zustand. Dexie is **not** a notes cache — only durable *client intent*.
 
-Pick the diagram style you prefer (image / ASCII / Mermaid).
-
----
-
-## LucidChart-style
-
-![State layers](./images/state-layers.png)
-
----
-
-## ASCII blocks
-
-```
-┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
-│     URL     │   │   Zustand   │   │ TanStack    │   │    Dexie    │
-│  filters    │   │  drafts /   │   │   Query     │   │  outbox +   │
-│  sort / q   │   │  session    │   │  notes      │   │  telemetry  │
-└──────┬──────┘   └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
-       │                 │                 │                 │
-       │                 ├──can/actions──►┌──────────┐       │
-       │                 │                │  domain  │       │
-       │                 │                │  machine │       │
-       │                 │                └──────────┘       │
-       └─────────────────┴────────┬────────┘                 │
-                                  ▼                          ▼
-                            ┌──────────┐              drain / flush
-                            │ REST+WS  │◄────────────────────┘
-                            └──────────┘
-```
 
 ---
 
@@ -48,21 +19,6 @@ Pick the diagram style you prefer (image / ASCII / Mermaid).
 | SOAP edit eligibility | `canEditContent` | Assigned reviewer + ADMIN in `IN_REVIEW`; clinician on reject/amend |
 | Workflow transitions | `noteMachine` guards | ADMIN: all user actions; reviewers: assignment-gated in `IN_REVIEW` |
 
----
-
-## Mermaid (optional)
-
-```mermaid
-flowchart LR
-  URL[URL filters] --> TQ[TanStack Query]
-  ZS[Zustand drafts/session] --> SM[noteMachine]
-  ZS --> TQ
-  TQ --> REST[REST]
-  DX[Dexie outbox] -->|drain| REST
-  WS[WebSocket] -->|patch| TQ
-```
-
----
 
 ## Related code
 
