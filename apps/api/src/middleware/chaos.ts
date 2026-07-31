@@ -26,7 +26,7 @@ const config: ChaosConfig = {
   ackDelayMs: 0,
 };
 
-/** Deterministic one-shots for demos (not gated by `enabled`). */
+/** Deterministic demo latches (not gated by `enabled`). */
 const failNext = {
   versions: 0,
   transitions: 0,
@@ -34,6 +34,9 @@ const failNext = {
   conflicts: 0,
   telemetry: 0,
 };
+
+/** Sticky until cleared via `setChaosConfig` (Demo FAB arm / clear). */
+const STICKY_FAIL = new Set(["versions", "transitions"]);
 
 export function getChaosConfig() {
   return {
@@ -64,14 +67,18 @@ export function shouldForceConflict() {
   return Math.random() < config.conflictRate;
 }
 
+/**
+ * Inject a 500 for the given route kind.
+ * `versions` / `transitions`: sticky while counter > 0 (clear via Demo).
+ * `noteGets` / `telemetry`: one-shot (decrements).
+ */
 export function consumeFailNext(
   kind: "versions" | "transitions" | "noteGets" | "telemetry",
 ): boolean {
-  if (failNext[kind] > 0) {
-    failNext[kind] -= 1;
-    return true;
-  }
-  return false;
+  if (failNext[kind] <= 0) return false;
+  if (STICKY_FAIL.has(kind)) return true;
+  failNext[kind] -= 1;
+  return true;
 }
 
 function sleep(ms: number) {

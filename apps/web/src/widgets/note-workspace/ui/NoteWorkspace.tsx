@@ -116,12 +116,6 @@ export function NoteWorkspace({ note }: Props) {
   });
 
   useEffect(() => {
-    if (failNextArmed && autosave.status === "error") {
-      setFailNextArmed(false);
-    }
-  }, [failNextArmed, autosave.status]);
-
-  useEffect(() => {
     if (readOnly) {
       registerDemo([
         {
@@ -144,16 +138,25 @@ export function NoteWorkspace({ note }: Props) {
           autosave.setForceConflictNext(!autosave.forceConflictNext),
       },
       {
-        id: "fail-next",
+        id: "fail-versions",
         label: failNextArmed
-          ? "Armed: next save → 500"
-          : "Fail next save (500)",
+          ? "Armed: all saves → 500"
+          : "Fail all version saves (500)",
         active: failNextArmed,
         onClick: () => {
-          void setDevFailNext({ versions: 1 }).then(() => {
-            setFailNextArmed(true);
-            setDemoMessage("Next version POST will 500 (rollback optimism)");
-          });
+          if (failNextArmed) {
+            void setDevFailNext({ versions: 0 }).then(() => {
+              setFailNextArmed(false);
+              setDemoMessage("Version save failures cleared.");
+            });
+          } else {
+            void setDevFailNext({ versions: 1 }).then(() => {
+              setFailNextArmed(true);
+              setDemoMessage(
+                "All version POSTs will 500 until you disarm this control.",
+              );
+            });
+          }
         },
       },
       {
