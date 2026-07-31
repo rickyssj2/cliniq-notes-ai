@@ -155,7 +155,10 @@ export class RealtimeClient {
       } catch {
         return;
       }
-      if (isRealtimeEvent(msg)) {
+      // Only durable log ids are valid reconnect cursors. Presence snaps use
+      // synthetic `snap_*` ids that never enter the server log — storing them
+      // makes eventsSince miss and dump recent history as "missed" duplicates.
+      if (isRealtimeEvent(msg) && !msg.eventId.startsWith("snap_")) {
         this.lastEventId = msg.eventId;
       }
       for (const l of this.messageListeners) l(msg);

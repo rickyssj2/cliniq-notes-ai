@@ -36,8 +36,9 @@ export function useRealtimeBootstrap() {
     });
     return () => {
       unsub();
-      // Keep socket alive across route changes; only disconnect on full unmount.
-      realtimeClient.disconnect();
+      // Do not disconnect here: React Strict Mode remounts this effect and would
+      // tear down the socket, force-resubscribe, and replay already-seen events.
+      // OfflineBootstrap owns disconnect when the browser goes offline.
     };
   }, [queryClient]);
 }
@@ -71,8 +72,8 @@ export function useNotePresenceChannel(noteId: string | undefined) {
   }, [noteId]);
 
   // Re-join when actor changes while the same note stays open.
+  // noteId changes are handled by setPresenceNote (leave prev + join next).
   useEffect(() => {
-    if (!noteId) return;
     realtimeClient.rejoinPresence();
-  }, [noteId, actor.id]);
+  }, [actor.id]);
 }

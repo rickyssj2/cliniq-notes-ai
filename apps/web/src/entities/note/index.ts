@@ -36,6 +36,7 @@ export {
   setDevFailNext,
   setDevChaos,
   fetchDevChaos,
+  duplicateLastRealtimeEvent,
   fetchDevUsers,
   type DevUser,
 } from "./api/notes-api";

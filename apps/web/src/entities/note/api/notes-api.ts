@@ -130,6 +130,24 @@ export async function setDevFailNext(patch: {
   return data.failNext;
 }
 
+/**
+ * Demo: rebroadcast the last logged WS event with the same eventId
+ * (client should drop the duplicate via seenEventIds).
+ */
+export async function duplicateLastRealtimeEvent(noteId?: string) {
+  const { data } = await apiFetch<{
+    ok: true;
+    eventId: string;
+    type: string;
+    noteId: string;
+    recipients: number;
+  }>("/dev/realtime/duplicate", {
+    method: "POST",
+    body: JSON.stringify(noteId ? { noteId } : {}),
+  });
+  return data;
+}
+
 export async function transitionNote(input: {
   noteId: string;
   to: NoteStatus;

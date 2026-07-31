@@ -156,8 +156,34 @@ export class NoteStore {
   eventsSince(lastEventId: string | null | undefined): RealtimeEvent[] {
     if (!lastEventId) return [];
     const idx = this.realtimeLog.findIndex((e) => e.eventId === lastEventId);
-    if (idx === -1) return this.realtimeLog.slice(-200);
+    if (idx === -1) {
+      // Presence snapshots use synthetic `snap_*` ids outside this log. Using
+      // them as a cursor must not dump the recent log (false "missed" replay).
+      if (lastEventId.startsWith("snap_")) return [];
+      // Real id trimmed from the ring buffer — best-effort catch-up.
+      return this.realtimeLog.slice(-200);
+    }
     return this.realtimeLog.slice(idx + 1);
+  }
+
+  /**
+   * Latest logged realtime event (optionally for one note). Prefers
+   * version/status over presence so demos hit content/lifecycle paths.
+   */
+  lastRealtimeEvent(noteId?: string): RealtimeEvent | null {
+    const prefer = (e: RealtimeEvent) =>
+      e.type === "note.version_added" || e.type === "note.status_changed";
+    for (let i = this.realtimeLog.length - 1; i >= 0; i--) {
+      const e = this.realtimeLog[i]!;
+      if (noteId && e.noteId !== noteId) continue;
+      if (prefer(e)) return e;
+    }
+    for (let i = this.realtimeLog.length - 1; i >= 0; i--) {
+      const e = this.realtimeLog[i]!;
+      if (noteId && e.noteId !== noteId) continue;
+      return e;
+    }
+    return null;
   }
 
   seed(count: number, seed = DEFAULT_SEED) {

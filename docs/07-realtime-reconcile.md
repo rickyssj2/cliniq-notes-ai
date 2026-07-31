@@ -29,11 +29,14 @@ Pick the diagram style you prefer (image / ASCII / Mermaid).
 
 **Race:** HTTP 200 ack and WS `note.*` may arrive in **either order** — both paths must be idempotent (`eventId` dedupe).
 
+**Demo:** Demo FAB → **Resend last WS event (duplicate eventId)** rebroadcasts the last logged event with the same id and `demoDuplicate: true`. Every subscribed tab toasts **WS duplicate dropped** and skips a second patch; routine subscribe/replay dedupe (no flag) stays silent.
+
 | Concern | Approach |
 |---|---|
 | Fan-out | Subscribe viewport + detail only |
 | Missed events | Backoff + `lastEventId` replay |
 | Local dirty vs remote | Same three-way merge UI |
+| At-least-once demo | `/api/dev/realtime/duplicate` + `seenEventIds` |
 
 ---
 

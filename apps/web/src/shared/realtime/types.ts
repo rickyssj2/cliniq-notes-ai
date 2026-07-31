@@ -11,6 +11,8 @@ export type RealtimeEvent =
       at: string;
       /** Echo of client X-Correlation-Id when the mutation carried one. */
       correlationId?: string;
+      /** Set only on DEV demo rebroadcasts (same eventId, all subscribers). */
+      demoDuplicate?: true;
     }
   | {
       type: "note.version_added";
@@ -25,6 +27,7 @@ export type RealtimeEvent =
       };
       at: string;
       correlationId?: string;
+      demoDuplicate?: true;
     }
   | {
       type: "note.presence";
@@ -33,6 +36,7 @@ export type RealtimeEvent =
       viewers: Array<{ id: string; role: Role; displayName: string }>;
       at: string;
       correlationId?: string;
+      demoDuplicate?: true;
     };
 
 export type RealtimeControlMessage =

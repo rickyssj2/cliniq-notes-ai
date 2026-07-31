@@ -65,6 +65,40 @@ describe("applyRealtimeEvent", () => {
     expect(applyRealtimeEvent(qc, event)).toBe(false);
     const detail = qc.getQueryData<NoteDetail>(notesQueryKeys.detail("note_1"));
     expect(detail?.status).toBe("IN_REVIEW");
+    // Routine dedupe stays silent (subscribe/replay must not spam toasts).
+    expect(
+      useNoticeStore.getState().items.some((n) =>
+        /duplicate dropped/i.test(n.title),
+      ),
+    ).toBe(false);
+  });
+
+  it("toasts duplicate when server marks demoDuplicate (all tabs)", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(
+      notesQueryKeys.detail("note_1"),
+      detailFixture({ status: "READY_FOR_REVIEW", assignedReviewer: null }),
+    );
+
+    const event = {
+      type: "note.status_changed" as const,
+      eventId: `evt_demo_dup_${crypto.randomUUID()}`,
+      noteId: "note_1",
+      fromStatus: "READY_FOR_REVIEW" as const,
+      toStatus: "IN_REVIEW" as const,
+      actor: { id: "dr_a", displayName: "Dr. A", role: "REVIEWER" as const },
+      at: "2025-01-01T01:00:00.000Z",
+    };
+
+    expect(applyRealtimeEvent(qc, event)).toBe(true);
+    expect(
+      applyRealtimeEvent(qc, { ...event, demoDuplicate: true as const }),
+    ).toBe(false);
+    expect(
+      useNoticeStore.getState().items.some((n) =>
+        /duplicate dropped/i.test(n.title),
+      ),
+    ).toBe(true);
   });
 
   it("caps seen-event memory (evicts oldest so session cannot grow forever)", () => {

@@ -2,6 +2,7 @@ import type { Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { Role } from "@soulside/domain";
 import { store } from "../store/store";
+import type { RealtimeEvent } from "../store/types";
 
 type ClientState = {
   id: string;
@@ -29,9 +30,31 @@ type ClientMessage =
 
 let nextClientId = 1;
 
+/** Live sockets — set by `attachRealtime` for demo rebroadcast. */
+let liveClients: Map<string, ClientState> | null = null;
+
+/**
+ * Fan-out an existing realtime payload without minting a new `eventId`
+ * (demo: at-least-once duplicate delivery). Marks `demoDuplicate` so every
+ * subscribed client can toast the drop — not only the tab that POSTed.
+ */
+export function rebroadcastRealtimeEvent(event: RealtimeEvent): number {
+  if (!liveClients) return 0;
+  const payload = JSON.stringify({ ...event, demoDuplicate: true as const });
+  let recipients = 0;
+  for (const client of liveClients.values()) {
+    if (client.socket.readyState !== client.socket.OPEN) continue;
+    if (!client.noteIds.has(event.noteId)) continue;
+    client.socket.send(payload);
+    recipients += 1;
+  }
+  return recipients;
+}
+
 export function attachRealtime(server: Server) {
   const wss = new WebSocketServer({ server, path: "/ws" });
   const clients = new Map<string, ClientState>();
+  liveClients = clients;
 
   const unsubscribeStore = store.subscribe((event) => {
     for (const client of clients.values()) {
@@ -157,6 +180,7 @@ export function attachRealtime(server: Server) {
     wss,
     close: () => {
       unsubscribeStore();
+      liveClients = null;
       wss.close();
     },
   };

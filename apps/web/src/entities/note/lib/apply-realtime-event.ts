@@ -94,7 +94,20 @@ export function applyRealtimeEvent(
   queryClient: QueryClient,
   event: RealtimeEvent,
 ): boolean {
-  if (!rememberEventId(event.eventId)) return false;
+  if (!rememberEventId(event.eventId)) {
+    // Server marks intentional demo rebroadcasts (`demoDuplicate`) so every
+    // subscribed tab toasts — subscribe/replay dedupe stays silent.
+    if (import.meta.env.DEV && event.demoDuplicate) {
+      pushNotice({
+        kind: "info",
+        noteId: "noteId" in event ? event.noteId : undefined,
+        title: "WS duplicate dropped",
+        body: `eventId ${event.eventId} already applied — at-least-once dedupe (no second patch).`,
+        ttlMs: 6_000,
+      });
+    }
+    return false;
+  }
 
   if (event.correlationId) {
     log.info("realtime.echo", {

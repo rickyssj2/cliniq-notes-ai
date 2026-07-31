@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { fetchDevChaos, setDevChaos } from "@entities/note";
+import {
+  duplicateLastRealtimeEvent,
+  fetchDevChaos,
+  setDevChaos,
+} from "@entities/note";
+import { ApiError } from "@shared/api";
 import { Button } from "@shared/ui/button";
 import {
   TOGGLE_DEMO_EVENT,
@@ -8,6 +13,11 @@ import {
 
 const DEFAULT_ACK_DELAY_MS = 2000;
 const MAX_ACK_DELAY_MS = 60_000;
+
+function noteIdFromPath(): string | undefined {
+  const m = window.location.pathname.match(/^\/notes\/([^/]+)/);
+  return m?.[1];
+}
 
 /**
  * Floating demo toolbar (DEV). Toggle with `D` or the FAB button.
@@ -147,6 +157,33 @@ export function DemoControlsFab() {
     }
   };
 
+  const resendDuplicateWs = async () => {
+    setBusy(true);
+    try {
+      const noteId = noteIdFromPath();
+      const result = await duplicateLastRealtimeEvent(noteId);
+      setMessage(
+        result.recipients === 0
+          ? `Resent ${result.type} (${result.eventId}) for ${result.noteId}, but 0 sockets were subscribed — stay on the note detail with Live WS.`
+          : `Resent duplicate ${result.type} · eventId ${result.eventId} → ${result.recipients} socket(s). Watch for “WS duplicate dropped” toast on every subscribed tab.`,
+      );
+    } catch (err) {
+      const reason =
+        err instanceof ApiError &&
+        typeof err.body === "object" &&
+        err.body !== null &&
+        "reason" in err.body &&
+        typeof (err.body as { reason?: unknown }).reason === "string"
+          ? (err.body as { reason: string }).reason
+          : err instanceof Error
+            ? err.message
+            : "No event to duplicate — save or transition a note first.";
+      setMessage(reason);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!import.meta.env.DEV) return null;
 
   return (
@@ -252,6 +289,26 @@ export function DemoControlsFab() {
                 Clear fail-next
               </Button>
             </div>
+          </section>
+
+          <section className="space-y-2 rounded-md border border-dashed border-(--border) bg-stone-50/80 p-2">
+            <p className="font-semibold text-(--foreground)">Realtime</p>
+            <p className="text-[10px] leading-relaxed text-(--muted)">
+              Re-send the last logged WS event with the same{" "}
+              <code className="font-mono">eventId</code> (at-least-once). Every
+              subscribed tab should toast “WS duplicate dropped” and skip a
+              second patch. Open a note detail (Live) and save/transition first.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="justify-start"
+              disabled={busy}
+              onClick={() => void resendDuplicateWs()}
+            >
+              Resend last WS event (duplicate eventId)
+            </Button>
           </section>
 
           {controls.length === 0 ? (
