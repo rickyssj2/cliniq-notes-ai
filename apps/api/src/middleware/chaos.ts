@@ -9,6 +9,11 @@ export type ChaosConfig = {
   /** Probability of forcing a version conflict on POST versions (0–1). */
   conflictRate: number;
   enabled: boolean;
+  /**
+   * Demo: fixed delay before every API ack (ms). Applied even when
+   * `enabled` is false so optimistic UI can be observed before fail-next.
+   */
+  ackDelayMs: number;
 };
 
 const config: ChaosConfig = {
@@ -17,6 +22,7 @@ const config: ChaosConfig = {
   failureRate: 0.05,
   conflictRate: 0.02,
   enabled: process.env.CHAOS !== "0",
+  ackDelayMs: 0,
 };
 
 /** Deterministic one-shots for demos (not gated by `enabled`). */
@@ -42,6 +48,9 @@ export function setChaosConfig(
 ) {
   const { failNext: failPatch, ...rest } = patch;
   Object.assign(config, rest);
+  if (typeof config.ackDelayMs === "number") {
+    config.ackDelayMs = Math.max(0, Math.min(60_000, config.ackDelayMs));
+  }
   if (failPatch) Object.assign(failNext, failPatch);
 }
 
@@ -72,7 +81,6 @@ function sleep(ms: number) {
 export async function chaosMiddleware(c: Context, next: Next) {
   const path = c.req.path;
   if (
-    !config.enabled ||
     path === "/api/health" ||
     path.startsWith("/api/dev/") ||
     path.startsWith("/api/telemetry")
@@ -80,12 +88,23 @@ export async function chaosMiddleware(c: Context, next: Next) {
     return next();
   }
 
-  const latency =
-    config.minLatencyMs +
-    Math.random() * (config.maxLatencyMs - config.minLatencyMs);
-  await sleep(latency);
+  // Demo ack delay — independent of chaos.enabled (fail-next rides after this).
+  if (config.ackDelayMs > 0) {
+    await sleep(config.ackDelayMs);
+  } else if (config.enabled) {
+    const latency =
+      config.minLatencyMs +
+      Math.random() * (config.maxLatencyMs - config.minLatencyMs);
+    await sleep(latency);
+  } else {
+    return next();
+  }
 
-  if (Math.random() < config.failureRate && c.req.method !== "OPTIONS") {
+  if (
+    config.enabled &&
+    Math.random() < config.failureRate &&
+    c.req.method !== "OPTIONS"
+  ) {
     return c.json(
       {
         error: "injected_failure",

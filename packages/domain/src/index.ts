@@ -30,6 +30,7 @@ export {
   applyServerStatusChange,
   getAvailableActions,
   isContentReadOnly,
+  getLifecycleBanner,
   canEditContent,
 } from "./note-machine";
 

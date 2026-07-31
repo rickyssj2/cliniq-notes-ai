@@ -4,6 +4,7 @@ import {
   applyServerStatusChange,
   can,
   getAvailableActions,
+  getLifecycleBanner,
   isContentReadOnly,
   canEditContent,
   transition,
@@ -396,6 +397,21 @@ describe("getAvailableActions", () => {
         base({ status: "LOCKED", actor: actor("c1", "CLINICIAN") }),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("getLifecycleBanner", () => {
+  it("explains LOCKED without requiring UI status branches", () => {
+    expect(getLifecycleBanner("LOCKED")).toMatch(/LOCKED.*24h/i);
+  });
+
+  it("explains GENERATING", () => {
+    expect(getLifecycleBanner("GENERATING")).toMatch(/generating/i);
+  });
+
+  it("returns null when user actions exist", () => {
+    expect(getLifecycleBanner("READY_FOR_REVIEW")).toBeNull();
+    expect(getLifecycleBanner("IN_REVIEW")).toBeNull();
   });
 });
 

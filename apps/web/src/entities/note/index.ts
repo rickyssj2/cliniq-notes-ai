@@ -14,6 +14,7 @@ export {
   applyServerStatusChange,
   getAvailableActions,
   isContentReadOnly,
+  getLifecycleBanner,
   canEditContent,
   NOTE_ACTIONS,
   AMEND_GRACE_MS,
@@ -33,6 +34,7 @@ export {
   transitionNote,
   saveNoteVersion,
   setDevFailNext,
+  setDevChaos,
   fetchDevUsers,
   type DevUser,
 } from "./api/notes-api";
@@ -63,4 +65,13 @@ export {
   type ConflictSource,
 } from "./model/conflict-store";
 export { applyRealtimeEvent } from "./lib/apply-realtime-event";
+export {
+  applyOptimisticDetailTransition,
+  reconcileDetailTransition,
+  rollbackDetailTransition,
+  localReviewEventId,
+  isLocalReviewEventId,
+  mergeReviewEvent,
+  reconcileLocalReviewEvent,
+} from "./lib/optimistic-transition";
 export { NoteStatusBadge } from "./ui/NoteStatusBadge";

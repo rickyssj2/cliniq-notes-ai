@@ -17,6 +17,7 @@ export {
   applyServerStatusChange,
   getAvailableActions,
   isContentReadOnly,
+  getLifecycleBanner,
   canEditContent,
 } from "./machine";
 export type { ContentEditResult } from "./machine";

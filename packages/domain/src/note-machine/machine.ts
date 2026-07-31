@@ -146,6 +146,22 @@ export function isContentReadOnly(status: NoteStatus): boolean {
   return status === "LOCKED" || status === "GENERATING";
 }
 
+/**
+ * Optional lifecycle banner copy when content is machine-locked and there are
+ * no user actions. Components must use this — never branch on status strings.
+ */
+export function getLifecycleBanner(status: NoteStatus): string | null {
+  if (!isContentReadOnly(status)) return null;
+  if (outgoingUserTransitions(status).length > 0) return null;
+  if (status === "LOCKED") {
+    return "This note is LOCKED after the 24h amendment grace window. Content is read-only; start a new clinical note if changes are required.";
+  }
+  if (status === "GENERATING") {
+    return "Note is generating. Content is read-only until generation completes.";
+  }
+  return null;
+}
+
 export type ContentEditResult =
   | { ok: true }
   | { ok: false; reason: string };

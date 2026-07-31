@@ -4,6 +4,7 @@ import type {
   NoteSummary,
   NoteStatus,
   NoteVersion,
+  ReviewEvent,
   SoapContent,
 } from "@soulside/domain";
 import { apiFetch } from "@shared/api";
@@ -71,23 +72,46 @@ export async function saveNoteVersion(input: {
   return data;
 }
 
+export async function setDevChaos(patch: {
+  enabled?: boolean;
+  minLatencyMs?: number;
+  maxLatencyMs?: number;
+  failureRate?: number;
+  conflictRate?: number;
+  /** Demo: fixed delay before API acks (0–60000). */
+  ackDelayMs?: number;
+  failNext?: {
+    versions?: number;
+    transitions?: number;
+    noteGets?: number;
+    conflicts?: number;
+    telemetry?: number;
+  };
+}) {
+  const { data } = await apiFetch<{
+    enabled: boolean;
+    ackDelayMs: number;
+    failNext: {
+      versions: number;
+      transitions: number;
+      noteGets: number;
+      conflicts: number;
+      telemetry: number;
+    };
+  }>("/dev/chaos", {
+    method: "POST",
+    body: JSON.stringify(patch),
+  });
+  return data;
+}
+
 export async function setDevFailNext(patch: {
   versions?: number;
   transitions?: number;
   noteGets?: number;
   conflicts?: number;
 }) {
-  const { data } = await apiFetch<{
-    failNext: {
-      versions: number;
-      transitions: number;
-      noteGets: number;
-      conflicts: number;
-    };
-  }>("/dev/chaos", {
-    method: "POST",
-    body: JSON.stringify({ failNext: patch }),
-  });
+  const data = await setDevChaos({ failNext: patch });
   return data.failNext;
 }
 
@@ -99,7 +123,7 @@ export async function transitionNote(input: {
   mfaVerified?: boolean;
   clientMutationId: string;
 }) {
-  const { data } = await apiFetch<{ note: NoteSummary }>(
+  const { data } = await apiFetch<{ note: NoteSummary; event: ReviewEvent }>(
     `/notes/${input.noteId}/transitions`,
     {
       method: "POST",

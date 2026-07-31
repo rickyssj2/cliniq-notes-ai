@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { NoteDetail, NoteStatus } from "@soulside/domain";
+import { isLocalReviewEventId } from "@entities/note";
 import {
   listPendingForNote,
   subscribeQueueStats,
@@ -49,20 +50,32 @@ export function ReviewTimeline({ note, variant = "page" }: Props) {
       )
       .map((e) => ({
         id: e.id,
-        kind: "server" as const,
+        kind: (isLocalReviewEventId(e.id) ? "pending" : "server") as
+          | "pending"
+          | "server",
         at: e.occurredAt,
         title: `${statusLabel(e.fromStatus)} → ${statusLabel(e.toStatus)}`,
         detail: [
           e.actorRole,
           e.actorId,
           e.reason ? `reason: ${e.reason}` : null,
+          isLocalReviewEventId(e.id)
+            ? "Optimistic · awaiting server eventId"
+            : null,
         ]
           .filter(Boolean)
           .join(" · "),
       }));
 
+    // Offline queue rows that aren't already represented as local ReviewEvents.
+    const localIds = new Set(
+      note.review.events
+        .filter((e) => isLocalReviewEventId(e.id))
+        .map((e) => e.id.replace(/^local_/, "")),
+    );
     const optimistic: TimelineRow[] = pending
       .filter((p) => p.type === "transition")
+      .filter((p) => !localIds.has(p.clientMutationId))
       .map((p) => {
         const payload = p.payload as TransitionPayload;
         return {

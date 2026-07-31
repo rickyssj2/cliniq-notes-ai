@@ -9,6 +9,10 @@ import { clearPendingGeneration } from "@shared/realtime";
 import { notesQueryKeys, type NotesFilterState } from "../api/query-keys";
 import { noteMatchesListFilters } from "./note-matches-list-filters";
 import {
+  mergeReviewEvent,
+  reviewEventFromStatusChanged,
+} from "./optimistic-transition";
+import {
   isDraftDirty,
   useEditorDraftStore,
 } from "../model/editor-draft-store";
@@ -116,11 +120,27 @@ export function applyRealtimeEvent(
       let statusActuallyChanged = false;
 
       if (detail) {
+        const serverReviewEvent = reviewEventFromStatusChanged({
+          eventId: event.eventId,
+          noteId: event.noteId,
+          fromStatus: event.fromStatus,
+          toStatus: event.toStatus,
+          actor: event.actor,
+          at: event.at,
+          versionId: detail.currentVersion.id,
+        });
+
         if (detail.status === event.toStatus) {
-          // Already applied (optimistic ack) — still refresh updatedAt lightly.
+          // Already applied (optimistic ack) — refresh timestamp + reconcile event.
           queryClient.setQueryData<NoteDetail>(detailKey, {
             ...detail,
             updatedAt: event.at,
+            review: {
+              events: mergeReviewEvent(
+                detail.review.events,
+                serverReviewEvent,
+              ),
+            },
           });
         } else {
           statusActuallyChanged = true;
@@ -150,6 +170,12 @@ export function applyRealtimeEvent(
                   : event.toStatus === "READY_FOR_REVIEW"
                     ? null
                     : detail.assignedReviewer,
+              review: {
+                events: mergeReviewEvent(
+                  detail.review.events,
+                  serverReviewEvent,
+                ),
+              },
             });
           } else {
             void queryClient.invalidateQueries({ queryKey: detailKey });

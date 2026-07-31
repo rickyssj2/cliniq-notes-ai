@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getAvailableActions,
+  getLifecycleBanner,
   type NoteAction,
   type NoteDetail,
 } from "@soulside/domain";
 import {
-  notesQueryKeys,
+  applyOptimisticDetailTransition,
+  reconcileDetailTransition,
+  rollbackDetailTransition,
   transitionNote,
   usePatchNoteInLists,
 } from "@entities/note";
@@ -106,14 +109,39 @@ export function NoteActionBar({ note }: Props) {
     [actor.id, actor.role, note.approvedAt, note.assignedReviewer?.id, note.status],
   );
 
-  const applyOptimisticTransition = (
+  const lifecycleBanner = useMemo(
+    () => getLifecycleBanner(note.status),
+    [note.status],
+  );
+
+  const applyOptimistic = (
     to: NoteDetail["status"],
     action: NoteAction,
+    clientMutationId: string,
+    reason?: string,
   ) => {
     const at = new Date().toISOString();
-    const nextAssigned =
+    const snapshot = applyOptimisticDetailTransition(queryClient, {
+      note,
+      to,
+      action,
+      actor: {
+        id: actor.id,
+        displayName: actor.displayName,
+        role: actor.role,
+      },
+      reason,
+      clientMutationId,
+      at,
+    });
+
+    const assignedReviewer =
       action === "start_review"
-        ? { id: actor.id, displayName: actor.displayName, role: actor.role }
+        ? {
+            id: actor.id,
+            displayName: actor.displayName,
+            role: actor.role,
+          }
         : action === "return" || action === "approve" || action === "reject"
           ? null
           : note.assignedReviewer;
@@ -121,24 +149,12 @@ export function NoteActionBar({ note }: Props) {
     patchList({
       ...note,
       status: to,
-      assignedReviewer: nextAssigned,
+      assignedReviewer,
       updatedAt: at,
       approvedAt: action === "approve" ? at : note.approvedAt,
     });
 
-    queryClient.setQueryData<NoteDetail>(
-      notesQueryKeys.detail(note.id),
-      (old) => {
-        if (!old) return old;
-        return {
-          ...old,
-          status: to,
-          assignedReviewer: nextAssigned,
-          updatedAt: at,
-          approvedAt: action === "approve" ? at : old.approvedAt,
-        };
-      },
-    );
+    return snapshot;
   };
 
   const run = async (action: NoteAction, reason?: string) => {
@@ -166,6 +182,13 @@ export function NoteActionBar({ note }: Props) {
           to: target.to,
         });
 
+        const snapshot = applyOptimistic(
+          target.to,
+          action,
+          clientMutationId,
+          reason,
+        );
+
         const queue = async () => {
           await enqueueTransition({
             noteId: note.id,
@@ -175,7 +198,6 @@ export function NoteActionBar({ note }: Props) {
             reason,
             mfaVerified: true,
           });
-          applyOptimisticTransition(target.to, action);
           track(
             "note.transition_queued",
             { noteId: note.id, action, to: target.to },
@@ -198,18 +220,16 @@ export function NoteActionBar({ note }: Props) {
             mfaVerified: true,
             clientMutationId,
           });
+          reconcileDetailTransition(queryClient, {
+            noteId: note.id,
+            clientMutationId,
+            note: result.note,
+            event: result.event,
+          });
           patchList(result.note);
           if (action === "regenerate") {
             trackPendingGeneration(note.id);
           }
-          await Promise.all([
-            queryClient.invalidateQueries({
-              queryKey: notesQueryKeys.detail(note.id),
-            }),
-            queryClient.invalidateQueries({
-              queryKey: notesQueryKeys.lists(),
-            }),
-          ]);
           track(
             "note.transition",
             { noteId: note.id, action, to: target.to },
@@ -221,8 +241,13 @@ export function NoteActionBar({ note }: Props) {
             err instanceof TypeError ||
             !isEffectivelyOnline()
           ) {
+            // Keep optimistic local ReviewEvent; queue will reconcile on drain.
             await queue();
             return;
+          }
+          if (snapshot) {
+            rollbackDetailTransition(queryClient, note.id, snapshot);
+            patchList(snapshot);
           }
           throw err;
         }
@@ -253,12 +278,10 @@ export function NoteActionBar({ note }: Props) {
     void run("reject", trimmed);
   };
 
-  if (note.status === "LOCKED") {
+  if (lifecycleBanner) {
     return (
       <div className="rounded-lg border border-(--border) bg-stone-50 px-4 py-3 text-sm text-(--muted)">
-        This note is <strong>LOCKED</strong> after the 24h amendment grace
-        window. Content is read-only; start a new clinical note if changes are
-        required.
+        {lifecycleBanner}
       </div>
     );
   }

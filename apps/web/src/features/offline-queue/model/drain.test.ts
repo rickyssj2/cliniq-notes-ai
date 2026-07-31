@@ -29,6 +29,7 @@ vi.mock("@entities/note", () => ({
   saveNoteVersion: (...args: unknown[]) => saveNoteVersion(...args),
   fetchNoteDetail: (...args: unknown[]) => fetchNoteDetail(...args),
   fetchNoteVersion: (...args: unknown[]) => fetchNoteVersion(...args),
+  reconcileDetailTransition: vi.fn(),
   useConflictStore: {
     getState: () => ({ openConflict }),
   },

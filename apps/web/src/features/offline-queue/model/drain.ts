@@ -1,9 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { NoteDetail, VersionConflictError } from "@soulside/domain";
+import type { VersionConflictError } from "@soulside/domain";
 import {
   fetchNoteDetail,
   fetchNoteVersion,
   notesQueryKeys,
+  reconcileDetailTransition,
   saveNoteVersion,
   transitionNote,
   useConflictStore,
@@ -245,25 +246,11 @@ export async function drainMutationQueue(
               mfaVerified: payload.mfaVerified,
               clientMutationId: item.clientMutationId,
             });
-            queryClient.setQueryData<NoteDetail>(
-              notesQueryKeys.detail(item.noteId),
-              (old) => {
-                if (!old) return old;
-                return {
-                  ...old,
-                  status: result.note.status,
-                  assignedReviewer: result.note.assignedReviewer,
-                  approvedAt: result.note.approvedAt,
-                  updatedAt: result.note.updatedAt,
-                  currentVersion: {
-                    ...old.currentVersion,
-                    ...result.note.currentVersion,
-                  },
-                };
-              },
-            );
-            await queryClient.invalidateQueries({
-              queryKey: notesQueryKeys.detail(item.noteId),
+            reconcileDetailTransition(queryClient, {
+              noteId: item.noteId,
+              clientMutationId: item.clientMutationId,
+              note: result.note,
+              event: result.event,
             });
             await queryClient.invalidateQueries({
               queryKey: notesQueryKeys.lists(),
