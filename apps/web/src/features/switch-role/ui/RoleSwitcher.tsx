@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { DEV_ACTORS, useActor, useSetActorById, ActorAvatar } from "@entities/user";
+import {
+  DEV_ACTORS,
+  useActor,
+  switchActor,
+  ActorAvatar,
+} from "@entities/user";
 
 /** Avatar menu — pick who to “Act as” without dumping name/role in the chrome. */
 export function RoleSwitcher() {
   const actor = useActor();
-  const setActorById = useSetActorById();
   const [open, setOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,6 +30,7 @@ export function RoleSwitcher() {
         aria-label={`Act as ${actor.displayName} (${actor.role}). Change actor`}
         aria-expanded={open}
         aria-haspopup="listbox"
+        disabled={switching}
         onClick={() => setOpen((v) => !v)}
       >
         <ActorAvatar user={actor} size="md" />
@@ -41,12 +47,20 @@ export function RoleSwitcher() {
               <li key={a.id} role="option" aria-selected={selected}>
                 <button
                   type="button"
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-stone-100 ${
+                  disabled={switching}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-stone-100 disabled:opacity-60 ${
                     selected ? "bg-teal-50" : ""
                   }`}
                   onClick={() => {
-                    setActorById(a.id);
-                    setOpen(false);
+                    void (async () => {
+                      setSwitching(true);
+                      try {
+                        await switchActor(a.id);
+                        setOpen(false);
+                      } finally {
+                        setSwitching(false);
+                      }
+                    })();
                   }}
                 >
                   <ActorAvatar user={a} size="sm" />

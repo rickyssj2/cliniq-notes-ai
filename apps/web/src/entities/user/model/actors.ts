@@ -2,11 +2,8 @@ import type { UserRef } from "@soulside/domain";
 
 /**
  * Mock directory for the take-home — mirrors users seeded by `apps/api`.
- * Not production auth: there is no IdP in this assignment. The header
- * "Act as" switcher picks from this list so we can exercise role guards.
- *
- * When real auth lands, replace this with the identity from the session
- * token / `/me` endpoint; keep `permissions.ts` as the capability matrix.
+ * "Act as" mints a server JWT (`POST /api/dev/token`); the API trusts claims,
+ * not `X-Actor-Id` / body.actorId. Still not a real IdP (no password).
  */
 export const DEV_ACTORS: UserRef[] = [
   { id: "dr_a", displayName: "Dr. A", role: "REVIEWER" },

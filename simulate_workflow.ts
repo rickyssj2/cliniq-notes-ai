@@ -73,6 +73,28 @@ async function request<T>(
   return { status: res.status, data };
 }
 
+const tokenCache = new Map<string, string>();
+
+async function tokenFor(actorId: string): Promise<string> {
+  const cached = tokenCache.get(actorId);
+  if (cached) return cached;
+  const { status, data } = await request<{
+    accessToken?: string;
+    error?: string;
+  }>("POST", "/api/dev/token", { actorId });
+  if (!isOk(status) || !data.accessToken) {
+    throw new Error(
+      `token mint failed for ${actorId}: ${status} ${JSON.stringify(data)}`,
+    );
+  }
+  tokenCache.set(actorId, data.accessToken);
+  return data.accessToken;
+}
+
+async function authHeaders(actorId: string): Promise<Record<string, string>> {
+  return { Authorization: `Bearer ${await tokenFor(actorId)}` };
+}
+
 /** Retry transient chaos 500s (assignment injects flakiness). */
 async function requestRetry<T>(
   method: string,
@@ -135,6 +157,8 @@ async function getDetail(noteId: string): Promise<NoteDetail> {
   const { status, data } = await requestRetry<NoteDetail>(
     "GET",
     `/api/notes/${noteId}`,
+    undefined,
+    await authHeaders("dr_a"),
   );
   if (!isOk(status)) throw new Error(`detail ${noteId} → ${status}`);
   return data;
@@ -144,7 +168,13 @@ async function transition(
   noteId: string,
   body: Record<string, unknown>,
 ): Promise<{ status: number; data: Json }> {
-  return requestRetry("POST", `/api/notes/${noteId}/transitions`, body);
+  const actorId = String(body.actorId ?? "dr_a");
+  return requestRetry(
+    "POST",
+    `/api/notes/${noteId}/transitions`,
+    body,
+    await authHeaders(actorId),
+  );
 }
 
 async function saveVersion(
@@ -152,7 +182,11 @@ async function saveVersion(
   body: Record<string, unknown>,
   headers?: Record<string, string>,
 ): Promise<{ status: number; data: Json }> {
-  return requestRetry("POST", `/api/notes/${noteId}/versions`, body, headers);
+  const actorId = String(body.actorId ?? "dr_a");
+  return requestRetry("POST", `/api/notes/${noteId}/versions`, body, {
+    ...(await authHeaders(actorId)),
+    ...headers,
+  });
 }
 
 /** Claim a READY note for this reviewer (handles concurrent claim races). */
@@ -443,9 +477,15 @@ async function scenarioRealtimeBeforeAck() {
 
 async function scenarioBurstDetailFetches() {
   console.log("\n[scenario] burst 500 detail fetches (load / no crash)");
+  const auth = await authHeaders("dr_a");
   const { status, data } = await requestRetry<{
     items: NoteSummary[];
-  }>("GET", "/api/notes?limit=100&status=READY_FOR_REVIEW,IN_REVIEW,APPROVED");
+  }>(
+    "GET",
+    "/api/notes?limit=100&status=READY_FOR_REVIEW,IN_REVIEW,APPROVED",
+    undefined,
+    auth,
+  );
   if (!isOk(status)) throw new Error(`list ${status}`);
 
   const ids: string[] = [];
@@ -463,7 +503,12 @@ async function scenarioBurstDetailFetches() {
     const page = await requestRetry<{
       items: NoteSummary[];
       cursor: { next: string | null; hasMore: boolean };
-    }>("GET", `/api/notes?limit=100&cursor=${encodeURIComponent(cursor)}`);
+    }>(
+      "GET",
+      `/api/notes?limit=100&cursor=${encodeURIComponent(cursor)}`,
+      undefined,
+      auth,
+    );
     if (!isOk(page.status)) break;
     ids.push(...page.data.items.map((n) => n.id));
     cursor = page.data.cursor.hasMore ? page.data.cursor.next : null;
@@ -476,7 +521,7 @@ async function scenarioBurstDetailFetches() {
 
   let ok = 0;
   for (const id of target) {
-    const res = await requestRetry("GET", `/api/notes/${id}`);
+    const res = await requestRetry("GET", `/api/notes/${id}`, undefined, auth);
     if (isOk(res.status)) ok += 1;
   }
   console.log(`[scenario] burst OK fetched=${ok}/${target.length}`);

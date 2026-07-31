@@ -351,7 +351,7 @@ See also [`docs/12-testing-and-performance.md`](docs/12-testing-and-performance.
 
 - API errors surface as actionable UI (rollback, merge, queue hint)
 - Nested `react-error-boundary` + `window` / Query `onError` → `track("ui.error")`
-- Auth is **simulated** (dev actors + capability matrix); server remains authoritative
+- Auth is **demo JWT** (`POST /api/dev/token` on “Act as”; notes require Bearer; not a real IdP); server remains authoritative
 - Telemetry redacts PII; mutation queue may hold clinical text locally (IndexedDB) — production hardening: encryption-at-rest
 
 ---
@@ -395,7 +395,7 @@ Client-side UX only. Server remains authoritative.
 | Route | `RequireCapability` → permission denied panel |
 | Nav | Struck-through items with `title` reason |
 | Action | Disabled + machine/capability reason |
-| Session | Zustand persist; `X-Actor-Id` on API calls |
+| Session | Zustand persist; server JWT via `POST /api/dev/token`; `Authorization: Bearer` on notes API |
 
 ---
 

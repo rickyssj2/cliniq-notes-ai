@@ -12,6 +12,7 @@
     "@hono/node-server": "^1.14.4",
     "@soulside/domain": "workspace:*",
     "hono": "^4.8.3",
+    "jose": "^5.10.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {

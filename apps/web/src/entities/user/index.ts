@@ -11,7 +11,11 @@ export {
   useActor,
   useRole,
   useSetActorById,
+  useAccessToken,
+  switchActor,
+  ensureAccessToken,
 } from "./model/session";
+export { mintDevToken } from "./api/mint-token";
 export { RequireCapability } from "./ui/RequireCapability";
 export { SessionBadge } from "./ui/SessionBadge";
 export { ActorAvatar } from "./ui/ActorAvatar";

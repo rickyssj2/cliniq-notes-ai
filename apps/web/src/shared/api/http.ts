@@ -23,12 +23,18 @@ export function isNetworkError(err: unknown): boolean {
 }
 
 type ActorIdProvider = () => string | null;
+type AccessTokenProvider = () => string | null;
 
 let actorIdProvider: ActorIdProvider = () => null;
+let accessTokenProvider: AccessTokenProvider = () => null;
 
 /** Wired from `app` so shared stays free of entity imports (FSD). */
 export function setActorIdProvider(provider: ActorIdProvider) {
   actorIdProvider = provider;
+}
+
+export function setAccessTokenProvider(provider: AccessTokenProvider) {
+  accessTokenProvider = provider;
 }
 
 /** Current session actor id (null until providers wire `setActorIdProvider`). */
@@ -36,9 +42,15 @@ export function getActorId(): string | null {
   return actorIdProvider();
 }
 
+export function getAccessToken(): string | null {
+  return accessTokenProvider();
+}
+
 export type ApiFetchInit = RequestInit & {
   /** Override ambient correlation; defaults to context or a fresh id. */
   correlationId?: string;
+  /** Skip Bearer (rare; prefer raw fetch for `/dev/token`). */
+  skipAuth?: boolean;
 };
 
 export async function apiFetch<T>(
@@ -46,10 +58,16 @@ export async function apiFetch<T>(
   init?: ApiFetchInit,
 ): Promise<{ status: number; data: T; correlationId: string }> {
   const actorId = actorIdProvider();
+  const accessToken = accessTokenProvider();
   const correlationId =
     init?.correlationId ?? getCorrelationId() ?? mintCorrelationId("http");
 
-  const { correlationId: _drop, headers: initHeaders, ...rest } = init ?? {};
+  const {
+    correlationId: _drop,
+    skipAuth,
+    headers: initHeaders,
+    ...rest
+  } = init ?? {};
 
   let res: Response;
   try {
@@ -58,7 +76,11 @@ export async function apiFetch<T>(
       headers: {
         "Content-Type": "application/json",
         "X-Correlation-Id": correlationId,
+        // Legacy header kept for debugging; server ignores it for authz.
         ...(actorId ? { "X-Actor-Id": actorId } : {}),
+        ...(!skipAuth && accessToken
+          ? { Authorization: `Bearer ${accessToken}` }
+          : {}),
         ...(initHeaders ?? {}),
       },
     });

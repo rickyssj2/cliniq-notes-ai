@@ -2,8 +2,40 @@ import { Hono } from "hono";
 import { store } from "../store/store";
 import { getChaosConfig, setChaosConfig } from "../middleware/chaos";
 import { rebroadcastRealtimeEvent } from "../realtime/hub";
+import { DEV_TOKEN_TTL_SEC, signActorToken } from "../auth/jwt";
 
 export const devRoutes = new Hono();
+
+/**
+ * Mint a short-lived HS256 JWT for a known seeded actor.
+ * Demo-only: no password — proves server-issued identity, not a real IdP.
+ */
+devRoutes.post("/token", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    actorId?: string;
+  };
+  const actorId =
+    typeof body.actorId === "string" && body.actorId.trim()
+      ? body.actorId.trim()
+      : "";
+  if (!actorId) {
+    return c.json({ error: "actorId_required" }, 400);
+  }
+  const user = store.listUsers().find((u) => u.id === actorId);
+  if (!user) {
+    return c.json({ error: "unknown_actor", actorId }, 400);
+  }
+  const accessToken = await signActorToken({
+    actorId: user.id,
+    role: user.role,
+  });
+  return c.json({
+    accessToken,
+    tokenType: "Bearer",
+    expiresIn: DEV_TOKEN_TTL_SEC,
+    actor: { id: user.id, displayName: user.displayName, role: user.role },
+  });
+});
 
 devRoutes.post("/seed", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {

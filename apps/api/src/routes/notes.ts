@@ -6,8 +6,14 @@ import {
   consumeFailNext,
   shouldForceConflict,
 } from "../middleware/chaos";
+import {
+  requireActorJwt,
+  type AuthVariables,
+} from "../middleware/auth";
 
-export const notesRoutes = new Hono();
+export const notesRoutes = new Hono<{ Variables: AuthVariables }>();
+
+notesRoutes.use("*", requireActorJwt);
 
 function parseStatuses(raw: string | undefined): NoteStatus[] | undefined {
   if (!raw) return undefined;
@@ -67,10 +73,8 @@ notesRoutes.post("/:id/versions", async (c) => {
   }
 
   const body = await c.req.json();
-  const actorId =
-    (typeof body.actorId === "string" && body.actorId) ||
-    c.req.header("x-actor-id") ||
-    "usr_clin_001";
+  // Identity from JWT only — ignore body.actorId / X-Actor-Id.
+  const actorId = c.get("actorId");
   const correlationId = c.req.header("x-correlation-id") ?? undefined;
   if (correlationId) c.header("X-Correlation-Id", correlationId);
 
@@ -95,8 +99,11 @@ notesRoutes.post("/:id/transitions", async (c) => {
   const body = await c.req.json();
   const correlationId = c.req.header("x-correlation-id") ?? undefined;
   if (correlationId) c.header("X-Correlation-Id", correlationId);
-  const result = store.transitionNote(c.req.param("id"), body, {
-    correlationId,
-  });
+  // Force actor from verified claims (client body.actorId cannot spoof).
+  const result = store.transitionNote(
+    c.req.param("id"),
+    { ...body, actorId: c.get("actorId") },
+    { correlationId },
+  );
   return c.json(result.body, result.status as 200 | 400 | 404 | 409);
 });

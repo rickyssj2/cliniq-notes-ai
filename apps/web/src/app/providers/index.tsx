@@ -1,9 +1,16 @@
-import { lazy, Suspense, useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useLocation } from "react-router";
 import { useConflictStore } from "@entities/note";
-import { useSessionStore } from "@entities/user";
-import { queryClient, setActorIdProvider } from "@shared/api";
+import {
+  ensureAccessToken,
+  useSessionStore,
+} from "@entities/user";
+import {
+  queryClient,
+  setAccessTokenProvider,
+  setActorIdProvider,
+} from "@shared/api";
 import { db } from "@shared/db";
 import { installGlobalErrorHandlers } from "@shared/errors";
 import { flush } from "@shared/telemetry";
@@ -22,6 +29,7 @@ type AppProvidersProps = {
 };
 
 setActorIdProvider(() => useSessionStore.getState().actor.id);
+setAccessTokenProvider(() => useSessionStore.getState().accessToken);
 
 const TelemetryDebugPanel = lazy(() =>
   import("@features/telemetry-debug/ui/TelemetryDebugPanel").then((m) => ({
@@ -35,6 +43,44 @@ function DexieBootstrap({ children }: { children: ReactNode }) {
       console.error("[dexie] failed to open", err);
     });
   }, []);
+  return children;
+}
+
+/** Mint/refresh demo JWT before notes API calls (Bearer required). */
+function AuthBootstrap({ children }: { children: ReactNode }) {
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void ensureAccessToken({ force: true })
+      .then(() => {
+        if (!cancelled) setReady(true);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to mint token");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6 text-sm text-(--muted)">
+        Auth bootstrap failed: {error}. Is the API running?
+      </div>
+    );
+  }
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6 text-sm text-(--muted)">
+        Signing in…
+      </div>
+    );
+  }
   return children;
 }
 
@@ -103,17 +149,19 @@ export function AppProviders({ children }: AppProvidersProps) {
       <BrowserRouter>
         <ErrorReportingBootstrap>
           <DexieBootstrap>
-            <OfflineBootstrap>
-              <RealtimeBootstrap>
-                <TelemetryBootstrap>
-                  <AppErrorBoundary label="app" variant="page">
-                    {children}
-                  </AppErrorBoundary>
-                  <KeyboardShortcutsHost />
-                  <DemoControlsFab />
-                </TelemetryBootstrap>
-              </RealtimeBootstrap>
-            </OfflineBootstrap>
+            <AuthBootstrap>
+              <OfflineBootstrap>
+                <RealtimeBootstrap>
+                  <TelemetryBootstrap>
+                    <AppErrorBoundary label="app" variant="page">
+                      {children}
+                    </AppErrorBoundary>
+                    <KeyboardShortcutsHost />
+                    <DemoControlsFab />
+                  </TelemetryBootstrap>
+                </RealtimeBootstrap>
+              </OfflineBootstrap>
+            </AuthBootstrap>
           </DexieBootstrap>
         </ErrorReportingBootstrap>
       </BrowserRouter>

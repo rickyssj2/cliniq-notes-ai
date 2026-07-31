@@ -18,6 +18,11 @@ export async function actAs(page: Page, displayName: string) {
     .getByRole("listbox", { name: "Switch active actor" })
     .getByRole("button", { name: displayName })
     .click();
+  // switchActor mints a JWT before closing the menu.
+  await expect(trigger).toHaveAttribute(
+    "aria-label",
+    new RegExp(`^Act as ${displayName} \\(`),
+  );
 }
 
 /** Filter notes list by status chip (e.g. `READY_FOR_REVIEW`). */

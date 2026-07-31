@@ -4,7 +4,9 @@ import {
   fetchDevChaos,
   setDevChaos,
 } from "@entities/note";
+import { useSessionStore } from "@entities/user";
 import { ApiError } from "@shared/api";
+import { config } from "@shared/config";
 import { Button } from "@shared/ui/button";
 import {
   TOGGLE_DEMO_EVENT,
@@ -17,6 +19,24 @@ const MAX_ACK_DELAY_MS = 60_000;
 function noteIdFromPath(): string | undefined {
   const m = window.location.pathname.match(/^\/notes\/([^/]+)/);
   return m?.[1];
+}
+
+async function probeNotesAuth(authorization?: string, extra?: HeadersInit) {
+  const headers: Record<string, string> = {
+    ...(extra as Record<string, string> | undefined),
+  };
+  if (authorization !== undefined) {
+    headers.Authorization = authorization;
+  }
+  const res = await fetch(`${config.apiBaseUrl}/notes?limit=1`, { headers });
+  let reason = "";
+  try {
+    const body = (await res.json()) as { reason?: string; error?: string };
+    reason = body.reason ?? body.error ?? "";
+  } catch {
+    /* ignore */
+  }
+  return { status: res.status, reason };
 }
 
 /**
@@ -184,6 +204,59 @@ export function DemoControlsFab() {
     }
   };
 
+  /** Prove notes API rejects missing/forged tokens and accepts the session JWT. */
+  const showcaseJwtAuth = async () => {
+    setBusy(true);
+    try {
+      const sessionToken = useSessionStore.getState().accessToken;
+      const lines: string[] = [];
+
+      const missing = await probeNotesAuth();
+      lines.push(
+        `1) No Authorization → ${missing.status}${missing.reason ? ` (${missing.reason})` : ""}`,
+      );
+
+      const invalid = await probeNotesAuth("Bearer not.a.valid.jwt");
+      lines.push(
+        `2) Invalid Bearer → ${invalid.status}${invalid.reason ? ` (${invalid.reason})` : ""}`,
+      );
+
+      const headerOnly = await probeNotesAuth(undefined, {
+        "X-Actor-Id": "usr_adm_001",
+      });
+      lines.push(
+        `3) X-Actor-Id only (forged, no Bearer) → ${headerOnly.status}${headerOnly.reason ? ` (${headerOnly.reason})` : ""}`,
+      );
+
+      let validStatus = 0;
+      if (!sessionToken) {
+        lines.push("4) Valid session JWT → skipped (no token in session)");
+      } else {
+        const valid = await probeNotesAuth(`Bearer ${sessionToken}`);
+        validStatus = valid.status;
+        lines.push(
+          `4) Valid session JWT → ${valid.status}${valid.status === 200 ? " (ok)" : valid.reason ? ` (${valid.reason})` : ""}`,
+        );
+      }
+
+      const ok =
+        missing.status === 401 &&
+        invalid.status === 401 &&
+        headerOnly.status === 401 &&
+        validStatus === 200;
+
+      setMessage(
+        `${ok ? "JWT demo passed." : "JWT demo unexpected results."}\n${lines.join("\n")}`,
+      );
+    } catch (err) {
+      setMessage(
+        err instanceof Error ? err.message : "JWT showcase failed",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!import.meta.env.DEV) return null;
 
   return (
@@ -292,6 +365,25 @@ export function DemoControlsFab() {
           </section>
 
           <section className="space-y-2 rounded-md border border-dashed border-(--border) bg-stone-50/80 p-2">
+            <p className="font-semibold text-(--foreground)">Auth (JWT)</p>
+            <p className="text-[10px] leading-relaxed text-(--muted)">
+              Notes API requires a server-minted Bearer token. Missing/invalid
+              tokens and bare <code className="font-mono">X-Actor-Id</code>{" "}
+              get 401; the session JWT succeeds.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="justify-start"
+              disabled={busy}
+              onClick={() => void showcaseJwtAuth()}
+            >
+              Showcase invalid vs valid token
+            </Button>
+          </section>
+
+          <section className="space-y-2 rounded-md border border-dashed border-(--border) bg-stone-50/80 p-2">
             <p className="font-semibold text-(--foreground)">Realtime</p>
             <p className="text-[10px] leading-relaxed text-(--muted)">
               Re-send the last logged WS event with the same{" "}
@@ -336,7 +428,9 @@ export function DemoControlsFab() {
             </div>
           )}
 
-          {message && <p className="text-(--muted)">{message}</p>}
+          {message && (
+            <p className="whitespace-pre-wrap text-(--muted)">{message}</p>
+          )}
           <p className="text-[10px] text-(--muted)">
             DevTools → Network → Offline for queue demos. Press{" "}
             <kbd className="font-mono">D</kbd> to hide ·{" "}

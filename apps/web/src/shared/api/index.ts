@@ -4,5 +4,7 @@ export {
   ApiError,
   isNetworkError,
   setActorIdProvider,
+  setAccessTokenProvider,
   getActorId,
+  getAccessToken,
 } from "./http";
