@@ -9,6 +9,8 @@ const BATCH_MAX = 20;
 const BATCH_MS = 4_000;
 const MAX_SEND_ATTEMPTS = 3;
 const IMPORTANT_FLUSH_MS = 800;
+/** Backoff before retry attempt i+1: 250ms, 500ms, … */
+const RETRY_BASE_MS = 250;
 
 let buffer: TelemetryEvent[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -17,6 +19,10 @@ let booted = false;
 
 function mintId(prefix: string) {
   return `${prefix}_${crypto.randomUUID()}`;
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 function scheduleFlush(ms: number) {
@@ -33,7 +39,8 @@ function bumpBuffered() {
 
 /**
  * Only public telemetry API. Batches by size/time; parks in Dexie after
- * repeated failures; flushes via sendBeacon/keepalive on unload.
+ * repeated failures; flushes via sendBeacon/keepalive on unload; flushes on
+ * route change (session boundary) via callers of `flush("route")`.
  */
 export function track(
   name: string,
@@ -104,7 +111,7 @@ export async function flush(reason = "manual"): Promise<void> {
   }
 }
 
-/** Unload/visibility: one shot. Otherwise retry before parking in Dexie. */
+/** Unload/visibility: one shot. Otherwise retry with exponential backoff before parking. */
 async function sendWithRetries(
   batchId: string,
   events: TelemetryEvent[],
@@ -122,6 +129,9 @@ async function sendWithRetries(
         failedAttempts: getTelemetryStats().failedAttempts + 1,
         lastError: lastError.message,
       });
+      if (i < attempts - 1) {
+        await sleep(RETRY_BASE_MS * 2 ** i);
+      }
     }
   }
   throw lastError ?? new Error("flush_failed");
@@ -132,7 +142,12 @@ async function sendBatch(
   events: TelemetryEvent[],
   unload: boolean,
 ): Promise<void> {
-  const payload = JSON.stringify({ batchId, events });
+  // Redact again at send-time so parked/replayed batches never leak PII.
+  const safeEvents = events.map((e) => ({
+    ...e,
+    props: redactProps(e.props),
+  }));
+  const payload = JSON.stringify({ batchId, events: safeEvents });
   const url = `${config.apiBaseUrl}/telemetry/batch`;
 
   if (unload && typeof navigator !== "undefined" && navigator.sendBeacon) {
