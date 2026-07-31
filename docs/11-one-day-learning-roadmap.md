@@ -194,8 +194,9 @@ You are done when you can do **all** without notes:
 - [ ] Draw state layers (URL / Zustand / Query / Dexie / domain)  
 - [ ] Draw note happy-path statuses  
 - [ ] Narrate 409 merge and offline drain  
-- [ ] Answer ADR-01 through ADR-06 cold  
-- [ ] Name 3 production hardening items (real auth, encrypt queue, real DB)
+- [ ] Answer ADR-01 through ADR-08 cold (incl. demo JWT)  
+- [ ] Name 3 production hardening items (real IdP, encrypt queue, real DB)  
+- [ ] Demo sticky fail + JWT showcase from memory
 
 ## What *not* to study today
 

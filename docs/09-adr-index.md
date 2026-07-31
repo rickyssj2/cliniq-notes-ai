@@ -8,7 +8,7 @@ Short Architecture Decision Records for interview defense. Each answers: **Chose
 
 **Chose:** Hand-rolled transition table in `packages/domain`.  
 **Over:** XState, Redux Toolkit, status `if`s in components.  
-**Because:** Same pure module validates SPA *and* mock API; zero runtime framework tax; trivial to unit test (32 cases).  
+**Because:** Same pure module validates SPA *and* mock API; zero runtime framework tax; trivial to unit test (44 cases).  
 **Tradeoff:** Less visual tooling / interpreters than XState; we document edges in Mermaid instead.
 
 ---
@@ -67,27 +67,36 @@ Short Architecture Decision Records for interview defense. Each answers: **Chose
 
 ---
 
-### ADR-08 — Simulated auth + capability matrix
+### ADR-08 — Demo JWT + capability matrix (not a real IdP)
 
-**Chose:** “Act as” actors + client route/nav/action guards.  
-**Over:** Real IdP/OIDC in take-home.  
-**Because:** Demonstrates UX for denied permissions; server remains authoritative for transitions.  
-**Tradeoff:** Not production auth — call out IdP + server session in “what next.”
+**Chose:** “Act as” mints a short-lived HS256 JWT (`POST /api/dev/token`); notes API requires Bearer and takes `actorId`/`role` from claims. Client route/nav/action guards still use a capability matrix.  
+**Over:** Trusting client `X-Actor-Id` / body.actorId alone, or wiring a full IdP in the take-home.  
+**Because:** Shows server-authoritative identity + denied-permission UX without OIDC ceremony. Demo FAB proves invalid tokens fail.  
+**Tradeoff:** `/dev/token` has no password — pattern demo only. Production: OIDC / httpOnly session; keep claim-driven server checks.
 
 ---
 
 ### ADR-09 — Telemetry batch + park + PII redaction
 
-**Chose:** In-memory batch → POST; after 3 failures park in Dexie; `redactProps` + API reject.  
+**Chose:** In-memory batch → POST with exponential backoff; after 3 failures park in Dexie; flush on route/visibility/unload; `redactProps` at enqueue **and** send; API rejects SOAP keys.  
 **Over:** Fire-and-forget per event or shipping raw SOAP.  
-**Because:** Unload durability (`sendBeacon` / keepalive) without leaking clinical text.  
-**Tradeoff:** Best-effort analytics; parked rows need later flush.
+**Because:** Session boundaries + unload durability without leaking clinical text.  
+**Tradeoff:** Best-effort analytics; parked rows need later flush / online reset.
 
 ---
 
 ### ADR-10 — Testing posture (pyramid, not exhaustive UI)
 
-**Chose:** Domain unit + queue/realtime integration + API sim + one Playwright smoke.  
+**Chose:** Domain unit (44) + web effectful modules (25) + API sim + Playwright (11).  
 **Over:** Exhaustive UI permutation / visual regression / 100k CI timing.  
-**Because:** Protects invariants and one critical path; chaos/scale verified manually via seed.  
+**Because:** Protects invariants and critical paths; chaos/scale verified manually via seed + Demo FAB.  
 **Tradeoff:** Gaps in a11y CI and long wall-clock offline sleeps — documented deliberately.
+
+---
+
+### ADR-11 — Sticky Demo fail latches (transitions / versions)
+
+**Chose:** While `failNext.transitions|versions > 0`, every matching request 500 until Demo Clear.  
+**Over:** One-shot decrement.  
+**Because:** Rollback demos need repeated failures with optional server delay; one-shot cleared before the reviewer could observe optimism.  
+**Tradeoff:** Easy to leave armed — UI badges + Clear control; sim sets `failNext: {}` when stabilizing scenarios.

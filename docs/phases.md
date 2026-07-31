@@ -18,22 +18,27 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 - [x] Phase 11 — Simulation, tests, README polish
 - [x] Phase 12 — Error boundaries (`react-error-boundary`) + global/Query reporters
 - [x] Phase 13 — Correlation IDs (HTTP / telemetry / WS) + tiny `shared/logging`
+- [x] Phase 14 — Demo JWT (Bearer on notes) + sticky fail latches + Demo FAB polish
 
 ## Try in UI
 
 ### Phase 2 — Backend demos (Demo FAB)
 
 1. Run `pnpm dev`, open Notes (API auto-seeds 100k)
-2. Open a READY note → Start review → edit → Demo (**D**) Force conflict / Fail next as needed
-3. Press **T** for the telemetry panel
+2. Press **D** — collapsible Demo panel. Arm **server delay** and/or sticky **fail all transitions / version saves**; badges stay active until Clear
+3. Open a READY note → Start review → edit → page controls: Force conflict / Fail all saves as needed
+4. **Auth (JWT)** → Showcase invalid vs valid token (three 401s, one 200)
+5. On a Live note detail, save once → **Resend last WS event** — duplicate `eventId` toast
+6. Press **T** for the telemetry panel
 
 ### Phase 3 — Roles & guards
 
-1. Open [http://localhost:5173](http://localhost:5173) — use the header **avatar** to switch roles
+1. Open [http://localhost:5173](http://localhost:5173) — boot mints a demo JWT (“Signing in…”); header **avatar** switches roles (remints token)
 2. As **Auditor Lee**: Notes works. Admin shows **Permission denied**. Nav items are struck through with hover reasons. On Notes, bulk actions are disabled with a reason tooltip
 3. As **Dr. A (REVIEWER)**: Notes open; Admin stays denied; bulk assign enables
 4. As **Admin Kim**: Admin opens
-5. Reload the page — the selected actor persists (Zustand + localStorage)
+5. Reload the page — the selected actor persists (Zustand + localStorage); token remints on boot
+6. Without Bearer (Postman bare GET `/api/notes`) → `401`; forged `X-Actor-Id` alone → `401`
 
 ### Phase 4 — Virtualized list
 
@@ -61,8 +66,9 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 2. Type quickly — saves coalesce (one in-flight POST; at most one follow-up)
 3. Arm **Force conflict on next save**, edit, wait for autosave → three-way merge modal
 4. Pick sections → **Resolve & save** — revision advances; idempotent `clientMutationId`
-5. **Fail next save (500)** then edit — optimistic paint rolls back; Retry reuses the same mutation id
-6. List filters survive detail ↔ back (search params preserved on Links)
+5. Demo (**D**) → arm **fail all version saves** (+ optional delay) → edit — optimistic paint rolls back on each attempt until Clear
+6. Arm **fail all transitions** → Start review / Approve fail with toast + rollback until Clear
+7. List filters survive detail ↔ back (search params preserved on Links)
 
 ### Phase 7 — Real-time
 
@@ -79,7 +85,7 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 2. DevTools → Network → **Offline** — header badge flips to **Offline**, amber banner appears
 3. Edit SOAP — autosave enqueues to IndexedDB; button may show **Queued**
 4. ← Notes — cached list still shows; opening an uncached note shows **You’re offline**
-5. Reload while still offline — queued content restores from Dexie; pending count survives
+5. Soft remount (← Notes then reopen / history) while offline — queued SOAP restores from Dexie (hard reload offline can’t boot Vite without a SW)
 6. Go online — banner **Back online · syncing…**, queue drains, revision bumps
 
 ### Phase 9 — History & timeline
@@ -101,8 +107,8 @@ Incremental delivery history for this take-home. Product docs stay in [`../Readm
 
 1. With API up: `pnpm simulate` — three reviewers finish ~60 notes under chaos; extra scenarios assert 409 merge, **ADMIN edit on REJECTED**, RT-before-ack, burst fetches
 2. `pnpm simulate:scenarios` — overlap / admin+resubmit / WS ordering / burst only (faster)
-3. `pnpm test` — domain (40) + web (9) Vitest
-4. `pnpm test:e2e` — Playwright **7 tests**: smoke, reject, conflict merge, auditor/admin/assignment gates, URL filters
+3. `pnpm test` — domain (44) + web (25) Vitest
+4. `pnpm test:e2e` — Playwright **11 tests**: smoke, workflows, ACL, two-tab conflict, offline queue, WS-before-ack, session soak
 
 Details: [`12-testing-and-performance.md`](./12-testing-and-performance.md).
 
@@ -119,4 +125,4 @@ Details: [`12-testing-and-performance.md`](./12-testing-and-performance.md).
 2. Telemetry panel → **Last corr** updates; after flush, batch event props include the same `correlationId`
 3. Transition — Network + Telemetry share a `transition_…` id; console `[log:info]` lines carry it
 4. With WS connected, save again — console `realtime.echo` logs the same id on the inbound event
-5. Navigate Home ↔ notes — each route change mints a `page_…` id on `page.view`
+5. Navigate Home ↔ Notes — each route change mints a `page_…` id on `page.view` and flushes the telemetry batch (`flush("route")`)

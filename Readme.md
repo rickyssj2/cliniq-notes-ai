@@ -24,7 +24,7 @@ API auto-seeds **100,000** notes (`SEED_COUNT`, default `100000`). First boot ca
 | `pnpm test` | Unit/integration (domain + web Vitest) |
 | `pnpm simulate` | Multi-reviewer API simulation (+ extra scenarios) |
 | `pnpm simulate:scenarios` | Extra scenarios only |
-| `pnpm test:e2e` | Playwright smoke (boots API+web if needed) |
+| `pnpm test:e2e` | Playwright — 11 browser tests (boots API+web if needed) |
 | `pnpm typecheck` | All packages |
 
 ## Workspace
@@ -140,10 +140,10 @@ flowchart TB
 | Layer | Owns | Does not own |
 |---|---|---|
 | **URL** | Filters, sort, search, deep links | Note bodies |
-| **Zustand** | Session, drafts, selection, conflict UI, connectivity, presence snapshot | Server note entities |
+| **Zustand** | Session actor + accessToken, drafts, selection, conflict UI, connectivity, presence snapshot | Server note entities |
 | **TanStack Query** | Notes / versions / review events (server cache) | Typing keystrokes |
 | **Dexie** | Mutation outbox + parked telemetry | Full offline notes replica |
-| **noteMachine** | Lifecycle legality | Persistence / HTTP |
+| **noteMachine** | Lifecycle legality + lifecycle banners | Persistence / HTTP |
 | **Telemetry buffer / WS** | Batching + live fan-in | Authoritative status |
 
 Server entities stay out of Zustand. Dexie is durable *client intent*, not a notes cache.
@@ -158,6 +158,7 @@ Implemented as a pure module in [`packages/domain/src/note-machine`](packages/do
 - **`can` / `transition`** — validate user intent before any API call
 - **`applyServerStatusChange`** — WS / authoritative pushes use the same table (`source: "server"`)
 - **`getAvailableActions`** — action bar; disabled buttons carry human-readable `reason`
+- **`getLifecycleBanner`** — read-only / generating copy derived from status (UI does not hard-code `status === "LOCKED"`)
 - UI must not hard-code status `if` trees for “what buttons exist”
 
 ```mermaid
@@ -200,13 +201,22 @@ pnpm --filter @soulside/domain test
 
 ### Optimistic Updates — Apply and roll back
 
-- **List:** bulk transitions patch the infinite-list cache, then reconcile or roll back.
-- **Detail:** coalesced autosave paints draft SOAP into detail (+ list `updatedAt`) before POST; on `500`/`409` the snapshot restores. Conflicts open merge UI instead of dropping edits.
-- **Timeline:** pending Dexie items appear as amber optimistic rows until drain/ack.
+**Why:** Latency and chaos would make a “wait for ACK” UI feel broken. We paint local intent immediately, then reconcile or restore a snapshot.
+
+| Surface | Apply | Rollback / reconcile |
+|---|---|---|
+| **SOAP autosave** | Coalesced saver patches detail (+ list `updatedAt`) before POST | On network/`500` restore snapshot; on `409` open merge (edits kept) |
+| **Online transitions** | Patch list + detail status (+ local `ReviewEvent` with `local_…` id) before POST | Non-network reject → restore snapshot, toast, invalidate; HTTP ack / WS replace local event by matching transition |
+| **Bulk transitions** | Optimistic infinite-list patches | Roll back failed rows; continue others |
+| **Offline** | Intent lands in Dexie; timeline shows amber optimistic rows | Drain FIFO; SOAP `409`/forbidden → merge UI; lost claims toast + drop |
+
+Demo: Demo FAB (**D**) → arm sticky **fail all transitions / version saves** (optionally with server delay) to watch optimism then rollback; clear the latch to resume normal acks.
 
 ### Concurrency — Version conflicts without data loss
 
 `POST /api/notes/:id/versions` requires `baseVersionId`. Mismatch (or force/chaos) → `409 version_conflict` with content for `current` + `commonAncestor`. UI: three-way merge (yours / server / ancestor), word-level `diff`, resolve retargets `baseVersionId` to server head. Idempotent via `clientMutationId`.
+
+List sort is stable: primary column × direction, then **`id` ascending** as a fixed tie-break (no flip with primary `order`).
 
 ### Offline — Write queue survives reloads
 
@@ -216,13 +226,19 @@ Dexie `mutationQueue` holds `create_version` / `transition` intents. Offline aut
 
 App-wide WebSocket: viewport note ids + open detail; `presence.join` on detail. Events dedupe by `eventId` (capped ~2k). Dirty draft + foreign `version_added` → merge UI. Reconnect: exponential backoff + jitter, resubscribe with `lastEventId`. HTTP ack and WS may arrive in either order — both paths are idempotent.
 
+**Presence:** unsubscribe (scroll away) does **not** clear presence; only an explicit leave / actor switch does. Empty presence spam on scroll is avoided.
+
+**At-least-once demo:** Demo FAB → **Resend last WS event (duplicate eventId)** — subscribed tabs toast and skip a second patch.
+
 ### Telemetry — Batch, retry, unload, PII redaction
 
-Only public API: `track(name, props, { important? })`. Batches by size (20), timer (4s / 800ms if important), and visibility/pagehide. After **3** failed sends the batch is **parked in Dexie** and replayed on later flushes.
+Only public API: `track(name, props, { important? })`. Batches by size (20), timer (4s / 800ms if important), **route change** (`flush("route")` after `page.view`), and visibility/pagehide.
 
-**Parked rows after going online:** previously, replay only ran on boot / successful flush, and rows that hit the attempt cap were left forever — so parked could stick after reconnect. Now `window` `online` triggers `flush("online")`, which **resets attempt counters** and drains the park. Manual **Flush now** does the same. Rows still park while chaos/`failNext` is failing; once the API accepts traffic again, the next online/flush clears them.
+Send path: up to **3** attempts with **exponential backoff** (250ms × 2ⁿ); on exhaustion the batch is **parked in Dexie**. Props are redacted at enqueue **and again at send** so parked/replayed batches cannot leak PII. API rejects SOAP-ish keys as defense in depth.
 
-Unload uses `sendBeacon` then `fetch({ keepalive: true })`. `redactProps` strips SOAP/`content`/long strings; API rejects those keys as defense in depth.
+**Parked rows after going online:** `window` `online` triggers `flush("online")`, which **resets attempt counters** and drains the park. Manual **Flush now** does the same.
+
+Unload uses `sendBeacon` then `fetch({ keepalive: true })`.
 
 ### Correlation IDs — UI → HTTP → telemetry → WS
 
@@ -230,7 +246,7 @@ Unload uses `sendBeacon` then `fetch({ keepalive: true })`. `redactProps` strips
 
 ### Scale — List/detail/history at 100k+ notes
 
-TanStack Virtual + infinite cursor query with a sliding `maxPages` window (bidirectional fetch). Filters/sort/search URL-persisted. Default seed **100k**. Detail version content loads on demand. Viewport-scoped WS subscriptions.
+TanStack Virtual + infinite cursor query with a sliding `maxPages` window (bidirectional fetch). Filters/sort/search URL-persisted. Default seed **100k**. Detail version content loads on demand. Viewport-scoped WS subscriptions. Sort headers always show affordances (inactive `↕`, active ↑/↓).
 
 ### Keyboard shortcuts
 
@@ -258,10 +274,10 @@ The assignment ships a **concurrency simulation script** (`simulate_workflow.ts`
 
 | Command | Scope |
 |---|---|
-| `pnpm test` | Vitest — domain machine (40) + web modules (9) |
+| `pnpm test` | Vitest — domain machine (44) + web modules (25) |
 | `pnpm simulate` | Full sim: seed 5k → 3 reviewers × 20 notes under chaos → extra scenarios |
 | `pnpm simulate:scenarios` | Extra scenarios only (overlap, admin edit, RT ordering, burst) |
-| `pnpm test:e2e` | Playwright — 7 browser tests (see below) |
+| `pnpm test:e2e` | Playwright — 11 browser tests (see below) |
 
 API must be running for `pnpm simulate` (`pnpm dev` or `pnpm dev:api`).
 
@@ -269,8 +285,10 @@ API must be running for `pnpm simulate` (`pnpm dev` or `pnpm dev:api`).
 
 | Module | File | What it proves |
 |---|---|---|
-| **State machine** | `packages/domain/src/note-machine/machine.test.ts` | Every transition edge, guards (assigned reviewer, **ADMIN break-glass**, MFA, grace window), `canEditContent`, `getAvailableActions`, server-driven status apply |
+| **State machine** | `packages/domain/src/note-machine/machine.test.ts` | Every transition edge, guards (assigned reviewer, **ADMIN break-glass**, MFA, grace window), `canEditContent`, `getAvailableActions`, `getLifecycleBanner`, server-driven status apply |
+| **Optimistic transitions** | `apps/web/src/entities/note/lib/optimistic-transition.test.ts` | Local ReviewEvent mint + reconcile with HTTP/WS ack |
 | **Autosave coalesce** | `apps/web/src/features/autosave-note/model/coalesced-saver.test.ts` | ≤1 in-flight save + ≤1 follow-up while typing |
+| **Editor draft** | `apps/web/src/entities/note/model/editor-draft-store.test.ts` | Dirty tracking / hydrate |
 | **Telemetry redact** | `apps/web/src/shared/telemetry/redact.test.ts` | PII keys stripped before batch POST |
 | **Offline queue** | `apps/web/src/features/offline-queue/model/mutation-queue.test.ts`, `drain.test.ts` | Dexie coalesce per note, FIFO order, terminal 4xx discard on drain |
 | **Realtime reconcile** | `apps/web/src/entities/note/lib/apply-realtime-event.test.ts` | `eventId` dedupe (at-least-once WS); seen-id cap so memory cannot grow forever |
@@ -304,14 +322,18 @@ Playwright drives Chromium like a user: clicks, typing, dialogs, navigation. **`
 | `access-control.spec.ts` | Unassigned reviewer | Assignment gate message after actor switch |
 | `access-control.spec.ts` | Admin approves others’ note | ADMIN break-glass in action bar |
 | `access-control.spec.ts` | URL filter deep link | `?status=` survives back navigation |
+| `concurrency.spec.ts` | Two tabs overlapping edit | Loser’s SOAP kept in merge modal |
+| `offline.spec.ts` | Offline queue → remount → drain | Dexie + connectivity; no silent wipe |
+| `realtime.spec.ts` | WS before held HTTP ack | Approve paints while POST body delayed |
+| `session-soak.spec.ts` | Open 25 notes | Session stays healthy (not heap profiling) |
 
-Shared helpers live in `e2e/helpers.ts` (`actAs`, `claimReadyNote`, etc.).
+Shared helpers live in `e2e/helpers.ts` (`actAs`, `claimReadyNote`, `setBrowserOffline`, etc.).
 
-**Is one smoke test enough?** For a take-home demo, yes as a minimum. For production you’d add more E2E for offline queue, two-tab realtime, and bulk actions — but those are partially covered by Vitest + `simulate_workflow.ts` here.
+**Assignment scenario coverage:** overlapping editors, offline queue reconnect, and RT-before-ack are now E2E-proven; reject/admin/resubmit stays in `pnpm simulate`; 500-note leak is API burst + light session soak (not full heap instrumentation).
 
 #### What we deliberately skip
 
-Full UI permutation matrix, visual regression, 100k-row render benchmarks in CI, literal 20-minute offline sleep (Dexie reload + `gcTime` covers offline intent).
+Full UI permutation matrix, visual regression, 100k-row render benchmarks in CI, literal 20-minute offline sleep (Dexie + `gcTime` 35m + offline E2E cover intent; hard reload while offline can’t boot Vite without a service worker).
 
 See also [`docs/12-testing-and-performance.md`](docs/12-testing-and-performance.md).
 
@@ -322,7 +344,7 @@ See also [`docs/12-testing-and-performance.md`](docs/12-testing-and-performance.
 | Technique | Where | Effect |
 |---|---|---|
 | **Route code splitting** | `apps/web/src/app/routes/index.tsx` | `React.lazy` per page (Home, Notes, Detail, Admin) + `Suspense` fallback |
-| **Deferred feature chunks** | `apps/web/src/app/providers/index.tsx` | Conflict merge + telemetry panel lazy-loaded (not on critical path) |
+| **Deferred feature chunks** | `apps/web/src/app/providers/index.tsx` | Telemetry panel lazy-loaded; conflict host stays eager (offline-safe) |
 | **List virtualization** | `widgets/notes-table` + `@tanstack/react-virtual` | Only visible rows mount; 100k notes stay O(viewport) DOM |
 | **Cursor pagination** | `useNotesInfiniteQuery` | Server pages notes; client never holds full dataset |
 | **TanStack Query cache** | `shared/api/query-client.ts` | `staleTime` 30s, `gcTime` 35m (`offlineFirst`) — cached reads survive brief offline |
@@ -347,23 +369,31 @@ See also [`docs/12-testing-and-performance.md`](docs/12-testing-and-performance.
 | Shortcuts | App-wide keys + help dialog |
 | **Gaps** | No full axe CI; conflict focus trap is light; live regions for status/presence are minimal |
 
-### Error handling & auth posture
+### Error handling & authorization posture
 
-- API errors surface as actionable UI (rollback, merge, queue hint)
-- Nested `react-error-boundary` + `window` / Query `onError` → `track("ui.error")`
-- Auth is **demo JWT** (`POST /api/dev/token` on “Act as”; notes require Bearer; not a real IdP); server remains authoritative
-- Telemetry redacts PII; mutation queue may hold clinical text locally (IndexedDB) — production hardening: encryption-at-rest
+**Error handling:** API failures surface as actionable UI (rollback, merge, queue hint). Nested `react-error-boundary` + `window` / Query `onError` → `track("ui.error")`. Structured `shared/logging` carries correlation ids. Mutation queue may hold clinical text in IndexedDB — production hardening: encryption-at-rest.
+
+**Authorization (demo JWT, not a production IdP):**
+
+1. Boot / “Act as” calls `POST /api/dev/token` with a seeded `actorId` → short-lived HS256 JWT (`sub` + `role`).
+2. `apiFetch` sends `Authorization: Bearer …` on every notes call. Session also keeps `X-Actor-Id` for debugging — **the API ignores it for authz**.
+3. Notes routes verify the JWT and force `actorId` from claims on versions/transitions (body cannot spoof identity).
+4. Client capability matrix + `noteMachine` still gate UX; server remains authoritative for transitions and edit gates.
+5. Demo FAB → **Showcase invalid vs valid token** proves missing / invalid / header-only → `401`, session JWT → `200`.
+
+Trade-off: `/api/dev/token` has no password (pattern demo). Production would replace minting with OIDC / httpOnly session cookies and keep the same claim-driven server checks. Telemetry and `/api/dev/*` (seed, chaos, token) stay open for demos; clinical mutation surface is Bearer-gated.
 
 ---
 
 ## Assumptions
 
 1. Single mock API process; in-memory store resets on restart (seed is deterministic).
-2. No real IdP — `Act as` stands in for session identity.
+2. No real IdP — “Act as” mints a **demo JWT** for a known seeded user (no password).
 3. MFA for approve is a `window.confirm` stand-in.
 4. “20 minutes offline” is demonstrated by Dexie durability across reload, not a literal CI sleep.
 5. Evaluators run locally on Node 20+ / modern Chromium; no deploy required.
-6. Random chaos may flake a single click; use `CHAOS=0` or fail-next for demos; sim retries 500s.
+6. Random chaos may flake a single click; use `CHAOS=0` or sticky Demo fail latches; sim retries 500s.
+7. Sticky fail-next for transitions/versions stays armed until cleared (intentional for rollback demos).
 
 ---
 
@@ -372,30 +402,50 @@ See also [`docs/12-testing-and-performance.md`](docs/12-testing-and-performance.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/health` | Store stats |
+| POST | `/api/dev/token` | Mint demo JWT `{ actorId }` → `{ accessToken, expiresIn, actor }` |
 | POST | `/api/dev/seed` | `{ count, seed? }` (max 100k) |
 | GET | `/api/dev/users` | Seeded actors |
 | GET | `/api/dev/ready-note` | First `READY_FOR_REVIEW` |
-| GET | `/api/notes` | Cursor + filters/sort |
+| GET/POST | `/api/dev/chaos` | Latency / rates / `ackDelayMs` / sticky `failNext` latches |
+| POST | `/api/dev/realtime/duplicate` | Rebroadcast last WS event with same `eventId` |
+| GET | `/api/notes` | Cursor + filters/sort (**Bearer required**) |
 | GET | `/api/notes/:id` | Detail + versions meta + review events |
 | GET | `/api/notes/:id/versions/:versionId` | Full version content |
-| POST | `/api/notes/:id/versions` | `baseVersionId`, `content`, `clientMutationId` |
-| POST | `/api/notes/:id/transitions` | Validated by `noteMachine` |
+| POST | `/api/notes/:id/versions` | Actor from JWT; `baseVersionId`, `content`, `clientMutationId` |
+| POST | `/api/notes/:id/transitions` | Actor from JWT; validated by `noteMachine` |
 | POST | `/api/telemetry/batch` | Batched events; rejects PII-ish keys |
 | GET | `/api/telemetry/recent` | Batch summaries |
 | WS | `/ws` | `subscribe` / `replay` / `presence.join` |
 
-Chaos (default on): latency, ~5% `500`, ~2% version conflicts. `CHAOS=0` disables. `POST /api/dev/chaos` `{ "failNext": { "versions": 1, "telemetry": 3, ... } }`.
+Chaos (default on): latency, ~5% `500`, ~2% version conflicts. `CHAOS=0` disables random chaos. Demo latches via `POST /api/dev/chaos`:
+
+- `ackDelayMs` — fixed pre-handler delay (even when `CHAOS=0`)
+- `failNext.transitions` / `failNext.versions` — **sticky** while > 0 (all matching requests 500 until cleared)
+- `failNext.telemetry` / `noteGets` / `conflicts` — one-shot counters
 
 ## Auth & guards
 
-Client-side UX only. Server remains authoritative.
-
 | Layer | Mechanism |
 |---|---|
+| Transport | Bearer JWT on `/api/notes/*`; identity from verified claims |
 | Route | `RequireCapability` → permission denied panel |
 | Nav | Struck-through items with `title` reason |
 | Action | Disabled + machine/capability reason |
-| Session | Zustand persist; server JWT via `POST /api/dev/token`; `Authorization: Bearer` on notes API |
+| Session | Zustand persist (`actor` + `accessToken`); remint on boot / Act as |
+
+---
+
+## Demo FAB (dev, key `D`)
+
+Collapsible sections with active badges; `?` tips for copy. Global controls:
+
+| Control | Behavior |
+|---|---|
+| Server delay | Sticky `ackDelayMs` on all API requests |
+| Fail-next | Sticky fail **all** transitions **or** all version saves until Clear |
+| Auth (JWT) | Probe missing / invalid / `X-Actor-Id`-only vs session Bearer |
+| Realtime | Duplicate last WS `eventId` |
+| This page | Empty-workspace showcase, force 409, fail saves, throw boundaries |
 
 ---
 
@@ -408,10 +458,23 @@ Mapped from *Frontend System Design and Architecture Assignment.pdf*. Status ref
 | Requirement | Status | Evidence |
 |---|---|---|
 | GitHub-ready complete source | Done | Monorepo `apps/web`, `apps/api`, `packages/domain` |
-| README: run, architecture, decisions, assumptions | Done | This file |
+| README: run, architecture, decisions, assumptions | Done | This file (ten required design topics + evaluation mapping) |
 | State-machine as code (and diagram) | Done | `packages/domain` + diagram above |
-| Own test scenarios beyond sim script | Done | Vitest + `simulate:scenarios` + Playwright |
+| Own test scenarios beyond sim script | Done | Vitest + `simulate:scenarios` + Playwright (11) |
 | Optional architecture diagrams | Done | Mermaid in README + `docs/` |
+
+### Evaluation criteria (what we look for)
+
+| Criterion | How this repo answers |
+|---|---|
+| **Frontend architecture** | FSD layers; domain package; swap transport/UI without rewriting lifecycle |
+| **State modelling & invariants** | Pure `TRANSITIONS` / `can` / `applyServerStatusChange`; UI from `getAvailableActions` |
+| **Concurrency & consistency** | Optimistic apply/rollback; 409 three-way merge; WS `eventId` dedupe; `clientMutationId` |
+| **Performance & scale** | Virtualized cursor list @ 100k; scoped WS; Query windowing |
+| **Async & effect discipline** | Coalesced autosave; Query keys; WS backoff; telemetry batch + park; queue drain |
+| **Accessibility** | Keyboard map, labels, dialog roles; stated WCAG 2.2 AA posture + gaps |
+| **Testing strategy** | Unit machine + effectful modules; API sim; Playwright (11: smoke, workflows, ACL, concurrency, offline, realtime, soak) |
+| **Design considerations** | Errors, logging, demo JWT authz, PII redaction, ADRs in `docs/09` |
 
 ### Functional — Notes list
 
@@ -420,7 +483,7 @@ Mapped from *Frontend System Design and Architecture Assignment.pdf*. Status ref
 | Cursor-paginated virtualized list @ 100k+ | Done | TanStack Virtual + infinite query; default seed 100k |
 | Filter panel (status, reviewer, dates) URL-persisted | Done | Patient free-text via search; no separate patient multi-select control |
 | Debounced server search; empty ≠ no-results | Done | |
-| Sortable columns, URL-persisted | Done | |
+| Sortable columns, URL-persisted | Done | Stable secondary sort by `id` ascending |
 | Bulk actions; selection across scroll | Done | Assign-me / regenerate |
 | Skeleton / optimistic row updates | Done | |
 
@@ -473,9 +536,9 @@ Mapped from *Frontend System Design and Architecture Assignment.pdf*. Status ref
 
 | Requirement | Status |
 |---|---|
-| `track()` only; batched flush | Done |
-| Retry → park in IDB; unload beacon | Done |
-| PII redaction | Done |
+| `track()` only; batched flush | Done | Size/timer/**route**/visibility |
+| Retry → park in IDB; unload beacon | Done | Exponential backoff; send-time re-redact |
+| PII redaction | Done | Client + API reject |
 
 ### Authorization
 
@@ -484,7 +547,7 @@ Mapped from *Frontend System Design and Architecture Assignment.pdf*. Status ref
 | Roles CLINICIAN / REVIEWER / ADMIN / READONLY_AUDITOR | Done |
 | Route / component / action guards; denied ≠ empty | Done |
 | **ADMIN** break-glass: all user transitions + SOAP edit in `IN_REVIEW` | Done |
-| Client auth is UX-only | Done |
+| Server-verified identity (demo JWT Bearer) | Done | Claims authoritative; `/dev/token` is not a real IdP |
 
 ### Dummy backend + simulation
 
@@ -510,8 +573,10 @@ All ten topics addressed in **Design decisions** above (topology, machine, optim
 
 - [ ] `pnpm dev` — list virtualizes at 100k; detail autosaves; two-tab Live updates
 - [ ] Force 409 — merge UI keeps both sides’ intent
-- [ ] Offline edit → reload → online drain
-- [ ] Telemetry Fail×3 → park → Flush now / go online → park clears
+- [ ] Offline edit → soft remount → online drain (`pnpm test:e2e` covers this)
+- [ ] Demo **D**: sticky fail transitions + delay → optimistic rollback; Clear → works again
+- [ ] Demo **D**: JWT showcase (401 / 401 / 401 / 200)
+- [ ] Telemetry Fail×3 → park → Flush now / go online → park clears; navigate routes flushes
 - [ ] WAVE: notes checkboxes announce patient / “Select all…” (not empty labels)
 - [ ] `?` opens shortcuts; `/` focuses search
 - [ ] `pnpm test` / `pnpm simulate` / `pnpm test:e2e` green

@@ -39,7 +39,7 @@ Pick the diagram style you prefer (image / ASCII / Mermaid).
 | Data | Store | Why |
 |---|---|---|
 | Note list / detail / versions | TanStack Query | Shared server ownership |
-| Actor / “Act as” | Zustand + persist | Session UX |
+| Actor / “Act as” + accessToken | Zustand + persist | Session UX; Bearer from `POST /api/dev/token` |
 | Dirty SOAP draft | Zustand | Local typing before POST |
 | List filters | URL | Deep-linkable |
 | Pending offline save | Dexie `mutationQueue` | Survives reload |

@@ -7,13 +7,13 @@ Think of tests as a **pyramid**: many fast tests at the bottom, fewer slow tests
 ```mermaid
 flowchart TB
   subgraph fast [Bottom — run on every commit]
-    Unit["Unit (Vitest) — 49 tests"]
+    Unit["Unit (Vitest) — 69 tests"]
   end
   subgraph medium [Middle — API running]
     Sim["simulate_workflow.ts — concurrency + 409"]
   end
   subgraph slow [Top — browser]
-    E2E["Playwright — 7 tests"]
+    E2E["Playwright — 11 tests"]
   end
   Unit --> Sim
   Sim --> E2E
@@ -33,19 +33,21 @@ flowchart TB
 
 ### Domain — `packages/domain`
 
-`machine.test.ts` (40 cases) is the **contract** for workflow and content edit:
+`machine.test.ts` (44 cases) is the **contract** for workflow and content edit:
 
-- All 11 `TRANSITIONS` edges
+- All `TRANSITIONS` edges
 - **ADMIN break-glass:** `start_review`, `return`, `approve` (no MFA), `reject`, `resubmit` without assignment
 - **Reviewer assignment:** non-assigned reviewers blocked on IN_REVIEW actions
 - `canEditContent`: assigned reviewer + ADMIN in `IN_REVIEW`; clinician on REJECTED/AMENDED
-- `getAvailableActions` drives the action bar — tests mirror UI enable/disable
+- `getAvailableActions` / `getLifecycleBanner` drive the action bar and banners — tests mirror UI enable/disable
 
-### Web — `apps/web`
+### Web — `apps/web` (25 cases)
 
 | Test | Invariant |
 |---|---|
+| `optimistic-transition.test.ts` | Local ReviewEvent mint + HTTP/WS reconcile |
 | `coalesced-saver.test.ts` | Autosave scheduling under rapid edits |
+| `editor-draft-store.test.ts` | Dirty tracking / hydrate |
 | `mutation-queue.test.ts` | Offline queue coalesce + FIFO order |
 | `drain.test.ts` | Terminal transition toast; SOAP conflict opens merge modal; 5xx kept |
 | `apply-realtime-event.test.ts` | WS dedupe + silent foreign version toast vs dirty merge |
@@ -56,6 +58,8 @@ flowchart TB
 ## API simulation (`pnpm simulate`)
 
 Assignment baseline (PDF): **three reviewers**, concurrent claim of READY notes, edit, approve/reject.
+
+Notes API calls mint a demo Bearer via `POST /api/dev/token` (same auth surface as the SPA).
 
 ### Happy path
 
@@ -79,10 +83,21 @@ Assignment baseline (PDF): **three reviewers**, concurrent claim of READY notes,
 | Concern | Sim | E2E |
 |---|---|---|
 | Three reviewers racing | Yes | No |
-| 409 payload shape | Yes | Conflict modal only |
+| 409 payload shape | Yes | Conflict modal + two-tab loser draft |
 | Reject modal UX | No | Yes |
-| Actor avatar menu | No | Yes |
-| Offline queue | No (not yet) | No (not yet) |
+| Actor avatar menu + JWT mint | No | Yes (`actAs` waits for remint) |
+| Offline queue | Unit drain/coalesce | Yes (`offline.spec.ts`) |
+| WS before HTTP ack | Yes (sim) | Yes (`realtime.spec.ts`) |
+
+### Assignment “build your own” matrix
+
+| Scenario | Sim / unit | E2E |
+|---|---|---|
+| Overlapping editors, no lost work | API 409 + merge | Two contexts; loser text in merge modal |
+| Drop mid-save / queue / reconnect (~20 min) | Dexie unit + `gcTime` 35m | Offline → SPA remount → online drain (no literal sleep; no SW so hard reload offline can’t boot Vite) |
+| `status_changed` before HTTP ack | `scenarioRealtimeBeforeAck` | Hold transition response; Approve paints first |
+| REJECTED → admin supersede → resubmit | Sim scenario | Not yet (API-proven) |
+| 500 notes / no leak | 500 GETs | 25 sequential opens + Live badge (CI smoke; not heap profiling) |
 
 ---
 
@@ -94,10 +109,14 @@ Playwright config: `workers: 1` (shared in-memory API), `CHAOS=0`, auto-starts A
 
 ```
 e2e/
-  helpers.ts           # actAs, claimReadyNote, armForceConflict, …
-  smoke.spec.ts        # Golden path — run first in CI
-  workflows.spec.ts    # Reject, conflict merge
+  helpers.ts              # actAs, claimReadyNote, setBrowserOffline, …
+  smoke.spec.ts           # Golden path — run first in CI
+  workflows.spec.ts       # Reject, conflict merge
   access-control.spec.ts  # Roles, assignment, URL filters
+  concurrency.spec.ts     # Two-tab overlapping edit
+  offline.spec.ts         # Queue + remount + drain
+  realtime.spec.ts        # WS paints before held HTTP ack
+  session-soak.spec.ts    # Open many notes in one session
 ```
 
 ### Test catalog
@@ -111,20 +130,25 @@ e2e/
 | `access-control` | Dr. B on Dr. A’s note | Assignment gate copy in UI |
 | `access-control` | Admin approves assigned note | ADMIN break-glass visible to user |
 | `access-control` | `?status=READY_FOR_REVIEW` deep link | URL-persisted filters |
+| `concurrency` | Two tabs overlapping SOAP | Loser’s draft survives in merge modal |
+| `offline` | Offline edits → remount → drain | Dexie queue + no silent wipe |
+| `realtime` | Hold HTTP transition ack | Status from WS before POST body |
+| `session-soak` | Open 25 notes | Navigation / badge stay healthy |
 
 ### E2E tips (learning)
 
 1. **Prefer roles over CSS** — `getByRole("button", { name: "Approve" })` survives class renames.
 2. **Use `expect.poll`** for async UI (autosave clearing “Dirty” badges).
 3. **Accept dialogs once** — Approve uses `window.confirm` as mock MFA.
-4. **Navigate before `actAs`** — header avatar only exists after a page load.
+4. **Navigate before `actAs`** — header avatar only exists after a page load; wait for aria-label after JWT remint.
 5. **Don’t parallelize** against one mock API — races on the same note pool.
 
-### Good next E2E additions (not implemented)
+### Still useful later (not required for take-home)
 
-- Offline: DevTools offline → edit → queue → online drain
-- Two browser contexts on same note (presence + live status)
-- Bulk “Start review” on selected rows
+- Presence avatars across two contexts
+- Reject → admin edit → clinician resubmit full UI
+- Heap / listener counts for a true 500-note soak
+- Sticky fail-next rollback demo
 
 ---
 
@@ -146,6 +170,6 @@ Enable React Compiler later via `babel-plugin-react-compiler` on the Vite React 
 
 ## Related
 
-- [`phases.md`](./phases.md) — Phase 11 manual verification
+- [`phases.md`](./phases.md) — Phase 11 / 14 manual verification
 - [`03-note-lifecycle-state-machine.md`](./03-note-lifecycle-state-machine.md) — ADMIN guards
-- [`09-adr-index.md`](./09-adr-index.md) — WS subscription scope ADR
+- [`09-adr-index.md`](./09-adr-index.md) — JWT, sticky fail, WS subscription ADRs

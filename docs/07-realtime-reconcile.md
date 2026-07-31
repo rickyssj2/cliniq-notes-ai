@@ -37,6 +37,7 @@ Pick the diagram style you prefer (image / ASCII / Mermaid).
 | Missed events | Backoff + `lastEventId` replay |
 | Local dirty vs remote | Same three-way merge UI |
 | At-least-once demo | `/api/dev/realtime/duplicate` + `seenEventIds` |
+| Presence | Join on detail; unsubscribe on scroll does **not** leave presence |
 
 ---
 

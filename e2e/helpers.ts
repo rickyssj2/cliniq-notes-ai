@@ -1,8 +1,45 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type BrowserContext, type Page } from "@playwright/test";
+
+const API_BASE = process.env.API_URL ?? "http://localhost:3001";
 
 /** Accept `window.confirm` (mock MFA on Approve). */
 export function acceptDialogs(page: Page) {
   page.on("dialog", (dialog) => dialog.accept());
+}
+
+/** Toggle Chromium offline (fires `online`/`offline`, fails fetch). */
+export async function setBrowserOffline(
+  context: BrowserContext,
+  offline: boolean,
+) {
+  await context.setOffline(offline);
+}
+
+/** Patch chaos config on the mock API (dev routes bypass latency). */
+export async function setApiChaos(patch: Record<string, unknown>) {
+  const res = await fetch(`${API_BASE}/api/dev/chaos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    throw new Error(`setApiChaos failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+/** Clear demo delay / fail-next so later specs stay deterministic. */
+export async function resetApiChaos() {
+  await setApiChaos({
+    ackDelayMs: 0,
+    failNext: {
+      transitions: 0,
+      versions: 0,
+      conflicts: 0,
+      noteGets: 0,
+      telemetry: 0,
+    },
+  });
 }
 
 /** Open the header avatar menu and pick a dev actor by display name. */
