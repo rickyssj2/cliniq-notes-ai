@@ -2,32 +2,6 @@
 
 Source of truth: `packages/domain/src/note-machine/transitions.ts` (`TRANSITIONS`, 11 edges).
 
-Pick the diagram style you prefer (image / ASCII / Mermaid).
-
----
-
-## LucidChart-style
-
-![Note lifecycle state machine](./images/note-lifecycle.png)
-
----
-
-## ASCII blocks
-
-```
-  GENERATING ──generation.complete──► READY_FOR_REVIEW ──start_review──► IN_REVIEW
-       │                                      ▲                              │
-       │ generation.error                     │ return                       │
-       ▼                                      │                              ├─approve──► APPROVED ──grace_expired──► LOCKED
-    FAILED ──regenerate──► GENERATING         │                              │                │
-                                              │                              └─reject──► REJECTED
-                                              │                                              │
-                                              └──────────── resubmit ◄───────────────────────┘
-                                                                    (CLINICIAN)
-
-  APPROVED ──amend (24h)──► AMENDED ──start_review──► IN_REVIEW
-```
-
 ---
 
 ## Guard highlights
@@ -48,7 +22,7 @@ UI contract: **`getAvailableActions`** drives buttons — no hardcoded status `i
 
 ---
 
-## Mermaid (optional)
+## Mermaid
 
 ```mermaid
 stateDiagram-v2

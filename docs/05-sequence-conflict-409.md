@@ -2,39 +2,9 @@
 
 `POST .../versions` requires `baseVersionId`. Mismatch → `409` with `current` + `commonAncestor`.
 
-Pick the diagram style you prefer (image / ASCII / Mermaid).
 
 ---
 
-## LucidChart-style
-
-![Version conflict 409](./images/sequence-conflict-409.png)
-
----
-
-## ASCII blocks
-
-```
-[ Autosave / Save ]
-        │
-        ▼
-[ POST baseVersionId = A ]
-        │
-   ┌────┴────┐
-   ▼         ▼
-[ 200 OK ]  [ 409 conflict ]
-              │
-              ▼
-        [ Rollback optimistic Query ]
-              │
-              ▼
-        [ Three-way merge modal ]
-        [ ancestor | yours | server ]
-              │
-              ▼
-        [ Resolve & save ]
-        [ baseVersionId = B (server head) ]
-```
 
 | Strategy | Risk |
 |---|---|
@@ -44,7 +14,7 @@ Pick the diagram style you prefer (image / ASCII / Mermaid).
 
 ---
 
-## Mermaid (optional)
+## Mermaid
 
 ```mermaid
 sequenceDiagram

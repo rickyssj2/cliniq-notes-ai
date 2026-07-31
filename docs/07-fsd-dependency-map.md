@@ -6,13 +6,15 @@ Import rule: layers only depend **downward**
 `@soulside/domain` sits beside the web app (imported by entities / API).
 
 
+
 ---
+
 
 **Illegal:** `entities` → `features` · `shared` → `features` · upward imports.
 
 ---
 
-## Mermaid
+## Mermaid 
 
 ```mermaid
 flowchart TB

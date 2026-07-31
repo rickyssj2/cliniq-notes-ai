@@ -1,6 +1,6 @@
 # ADR index — choices and tradeoffs
 
-Short Architecture Decision Records for interview defense. Each answers: **Chose X over Y because Z.**
+Short Architecture Decision Records. Each answers: **Chose X over Y because Z.**
 
 ---
 
