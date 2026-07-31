@@ -22,7 +22,7 @@ export function ConflictMergeHost() {
   const closeConflict = useConflictStore((s) => s.closeConflict);
   const setAutosaveOn = useAutosavePreferenceStore((s) => s.setEnabled);
   const applyResolution = useEditorDraftStore((s) => s.applyResolution);
-  const markClean = useEditorDraftStore((s) => s.markClean);
+  const acknowledgeSave = useEditorDraftStore((s) => s.acknowledgeSave);
   const actor = useActor();
   const queryClient = useQueryClient();
 
@@ -55,7 +55,8 @@ export function ConflictMergeHost() {
           clientMutationId: `merge_${payload.noteId}_${crypto.randomUUID()}`,
           actorId: actor.id,
         });
-        markClean(payload.noteId, result.version.id);
+        // Honest ack: keep any edits typed while the resolve POST was in flight.
+        acknowledgeSave(payload.noteId, result.version.id, sections);
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: notesQueryKeys.detail(payload.noteId),

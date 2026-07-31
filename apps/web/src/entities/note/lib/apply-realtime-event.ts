@@ -205,54 +205,94 @@ export function applyRealtimeEvent(
       return true;
     }
     case "note.version_added": {
-      const draft = useEditorDraftStore.getState().drafts[event.noteId];
-      const dirty = isDraftDirty(draft);
-      let openedConflict = false;
-
-      if (
-        dirty &&
-        draft &&
-        draft.baseVersionId !== event.version.id &&
-        !useConflictStore.getState().open
-      ) {
-        // Skip echo of our own successful save (arrives before markClean).
-        const isOwnEcho =
-          event.version.parentVersionId === draft.baseVersionId &&
-          JSON.stringify(event.version.content.sections) ===
-            JSON.stringify(draft.sections);
-        if (!isOwnEcho) {
-          const conflict: VersionConflictError = {
-            error: "version_conflict",
-            current: {
-              id: event.version.id,
-              revision: event.version.revision,
-              parentVersionId: event.version.parentVersionId,
-              authoredBy: event.version.authoredBy,
-              content: event.version.content,
-            },
-            commonAncestor: {
-              id: draft.baseVersionId,
-              revision: Math.max(1, event.version.revision - 1),
-              parentVersionId: null,
-              content: { sections: { ...draft.baseSections } },
-            },
-          };
-          useConflictStore.getState().openConflict({
-            noteId: event.noteId,
-            conflict,
-            yours: draft,
-            source: "realtime",
-          });
-          openedConflict = true;
-        }
-      }
-
       const detailKey = notesQueryKeys.detail(event.noteId);
       const detail = queryClient.getQueryData<NoteDetail>(detailKey);
+
+      // Stale echo guard: a slow save's WS event can land after a follow-up
+      // save already advanced the tip. Never regress cache/draft to it.
+      if (
+        detail &&
+        event.version.id !== detail.currentVersion.id &&
+        event.version.revision <= detail.currentVersion.revision
+      ) {
+        return true;
+      }
+
+      const draft = useEditorDraftStore.getState().drafts[event.noteId];
+
+      // Own save echo. Content equality is deliberately NOT required — the
+      // user may have typed more while the slow POST was in flight; that
+      // typed-ahead text must not be mistaken for a foreign conflict.
+      const alreadyAcked =
+        Boolean(draft) && draft!.baseVersionId === event.version.id;
+      const parentsOurBase =
+        Boolean(draft) &&
+        event.version.parentVersionId === draft!.baseVersionId;
+      const isOwnEcho =
+        alreadyAcked ||
+        (parentsOurBase &&
+          (isSelfActor(event.version.authoredBy.id) ||
+            JSON.stringify(event.version.content.sections) ===
+              JSON.stringify(draft!.sections)));
+
+      let openedConflict = false;
+
+      if (isOwnEcho) {
+        if (!alreadyAcked) {
+          // WS beat the HTTP ack — advance base, keep typed-ahead edits dirty.
+          useEditorDraftStore
+            .getState()
+            .acknowledgeSave(
+              event.noteId,
+              event.version.id,
+              event.version.content.sections,
+            );
+        }
+      } else if (
+        draft &&
+        isDraftDirty(draft) &&
+        !useConflictStore.getState().open
+      ) {
+        const conflict: VersionConflictError = {
+          error: "version_conflict",
+          current: {
+            id: event.version.id,
+            revision: event.version.revision,
+            parentVersionId: event.version.parentVersionId,
+            authoredBy: event.version.authoredBy,
+            content: event.version.content,
+          },
+          commonAncestor: {
+            id: draft.baseVersionId,
+            revision: Math.max(1, event.version.revision - 1),
+            parentVersionId: null,
+            content: { sections: { ...draft.baseSections } },
+          },
+        };
+        useConflictStore.getState().openConflict({
+          noteId: event.noteId,
+          conflict,
+          yours: draft,
+          source: "realtime",
+        });
+        openedConflict = true;
+      }
+
+      const dirtyAfter = isDraftDirty(
+        useEditorDraftStore.getState().drafts[event.noteId],
+      );
       const tipChanged =
         Boolean(detail) && detail!.currentVersion.id !== event.version.id;
 
-      if (detail && !dirty) {
+      if (detail && openedConflict) {
+        // Keep showing local draft; still bump meta so UI knows server moved.
+        queryClient.setQueryData<NoteDetail>(detailKey, {
+          ...detail,
+          updatedAt: event.at,
+        });
+      } else if (detail) {
+        // Own echo or foreign clean tip: cache follows the server. The draft
+        // store guards unsaved edits (hydrate never replaces a dirty draft).
         queryClient.setQueryData<NoteDetail>(detailKey, {
           ...detail,
           currentVersion: {
@@ -263,12 +303,6 @@ export function applyRealtimeEvent(
             content: event.version.content,
             authoredBy: event.version.authoredBy,
           },
-          updatedAt: event.at,
-        });
-      } else if (detail && dirty) {
-        // Keep showing local draft; still bump meta so UI knows server moved.
-        queryClient.setQueryData<NoteDetail>(detailKey, {
-          ...detail,
           updatedAt: event.at,
         });
       } else {
@@ -289,8 +323,9 @@ export function applyRealtimeEvent(
       // reviewer/admin concurrent saves are never invisible.
       if (
         detail &&
-        !dirty &&
+        !dirtyAfter &&
         !openedConflict &&
+        !isOwnEcho &&
         tipChanged &&
         !isSelfActor(event.version.authoredBy.id)
       ) {

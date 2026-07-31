@@ -227,9 +227,15 @@ export async function drainMutationQueue(
               clientMutationId: item.clientMutationId,
               actorId: payload.actorId,
             });
+            // Honest ack: advance base to the drained tip without clobbering
+            // edits the user typed while the drain replay was running.
             useEditorDraftStore
               .getState()
-              .markClean(item.noteId, result.version.id);
+              .acknowledgeSave(
+                item.noteId,
+                result.version.id,
+                payload.content.sections,
+              );
             await queryClient.invalidateQueries({
               queryKey: notesQueryKeys.detail(item.noteId),
             });

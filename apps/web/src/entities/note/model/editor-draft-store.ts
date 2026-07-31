@@ -20,6 +20,17 @@ type EditorDraftState = {
   }) => void;
   setSection: (noteId: string, section: SoapSection, value: string) => void;
   markClean: (noteId: string, baseVersionId: string) => void;
+  /**
+   * Server (HTTP or WS) acked a save we authored. Advances the base to the
+   * new tip with exactly what the server stored, but keeps the live working
+   * copy — the user may have typed more while the POST was in flight. Dirty
+   * is recomputed per section, so remaining edits trigger a follow-up save.
+   */
+  acknowledgeSave: (
+    noteId: string,
+    newBaseVersionId: string,
+    savedSections: Record<SoapSection, string>,
+  ) => void;
   /** After conflict merge: retarget baseVersionId and mark dirty for autosave. */
   applyResolution: (input: {
     noteId: string;
@@ -62,10 +73,10 @@ export const useEditorDraftStore = create<EditorDraftState>((set, get) => ({
     if (
       !force &&
       existing &&
-      existing.baseVersionId === baseVersionId &&
       Object.values(existing.dirty).some(Boolean)
     ) {
-      // Keep in-progress edits for the same head version.
+      // Never clobber unsaved edits — even when the server tip moved.
+      // Ack (acknowledgeSave) and conflict-resolve flows own base transitions.
       return;
     }
     if (
@@ -123,6 +134,32 @@ export const useEditorDraftStore = create<EditorDraftState>((set, get) => ({
           baseSections: sections,
           sections,
           dirty: emptyDirty(),
+        },
+      },
+    });
+  },
+
+  acknowledgeSave: (noteId, newBaseVersionId, savedSections) => {
+    const draft = get().drafts[noteId];
+    if (!draft) return;
+    // HTTP ack and WS echo can both fire for the same tip — second is a no-op.
+    if (draft.baseVersionId === newBaseVersionId) return;
+
+    const baseSections = copySections(savedSections);
+    set({
+      drafts: {
+        ...get().drafts,
+        [noteId]: {
+          ...draft,
+          baseVersionId: newBaseVersionId,
+          baseSections,
+          // Keep live sections; dirty = typed-ahead divergence from the ack.
+          dirty: {
+            S: draft.sections.S !== baseSections.S,
+            O: draft.sections.O !== baseSections.O,
+            A: draft.sections.A !== baseSections.A,
+            P: draft.sections.P !== baseSections.P,
+          },
         },
       },
     });

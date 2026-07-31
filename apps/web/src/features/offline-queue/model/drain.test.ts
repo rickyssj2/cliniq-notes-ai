@@ -18,6 +18,7 @@ const fetchNoteDetail = vi.hoisted(() => vi.fn());
 const fetchNoteVersion = vi.hoisted(() => vi.fn());
 const openConflict = vi.hoisted(() => vi.fn());
 const markClean = vi.hoisted(() => vi.fn());
+const acknowledgeSave = vi.hoisted(() => vi.fn());
 const applyResolution = vi.hoisted(() => vi.fn());
 
 vi.mock("@entities/note", () => ({
@@ -36,6 +37,7 @@ vi.mock("@entities/note", () => ({
   useEditorDraftStore: {
     getState: () => ({
       markClean,
+      acknowledgeSave,
       applyResolution,
       drafts: {},
     }),

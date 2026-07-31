@@ -61,6 +61,7 @@ export function useCoalescedAutosave(opts: {
   const queryClient = useQueryClient();
   const patchList = usePatchNoteInLists();
   const markClean = useEditorDraftStore((s) => s.markClean);
+  const acknowledgeSave = useEditorDraftStore((s) => s.acknowledgeSave);
   const draft = useEditorDraftStore((s) => s.drafts[note.id]);
   const [forceConflictNext, setForceConflictNext] = useState(false);
 
@@ -71,6 +72,7 @@ export function useCoalescedAutosave(opts: {
   const patchListRef = useRef(patchList);
   const queryClientRef = useRef(queryClient);
   const markCleanRef = useRef(markClean);
+  const acknowledgeSaveRef = useRef(acknowledgeSave);
 
   forceRef.current = forceConflictNext;
   onConflictRef.current = onConflict;
@@ -79,6 +81,7 @@ export function useCoalescedAutosave(opts: {
   patchListRef.current = patchList;
   queryClientRef.current = queryClient;
   markCleanRef.current = markClean;
+  acknowledgeSaveRef.current = acknowledgeSave;
 
   const saveImplRef = useRef<(clientMutationId: string) => Promise<{
     ok: true;
@@ -147,16 +150,21 @@ export function useCoalescedAutosave(opts: {
           setForceConflictNext(false);
         }
 
+        // Freeze the payload — the user may keep typing while the POST is slow.
+        const savedSections = { ...d.sections };
+
         const result = await saveNoteVersion({
           noteId: n.id,
           baseVersionId: d.baseVersionId,
-          content: { sections: d.sections },
+          content: { sections: savedSections },
           clientMutationId,
           actorId: actorIdRef.current,
           headers,
         });
 
-        markCleanRef.current(n.id, result.version.id);
+        // Advance base to the acked tip; typed-ahead edits stay dirty and
+        // trigger a follow-up save — never wiped by markClean/hydrate.
+        acknowledgeSaveRef.current(n.id, result.version.id, savedSections);
         await qc.invalidateQueries({ queryKey: detailKey });
         patchListRef.current({
           ...n,
