@@ -72,6 +72,21 @@ export async function saveNoteVersion(input: {
   return data;
 }
 
+export async function fetchDevChaos() {
+  const { data } = await apiFetch<{
+    enabled: boolean;
+    ackDelayMs: number;
+    failNext: {
+      versions: number;
+      transitions: number;
+      noteGets: number;
+      conflicts: number;
+      telemetry: number;
+    };
+  }>("/dev/chaos");
+  return data;
+}
+
 export async function setDevChaos(patch: {
   enabled?: boolean;
   minLatencyMs?: number;

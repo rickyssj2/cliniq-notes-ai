@@ -10,8 +10,9 @@ export type ChaosConfig = {
   conflictRate: number;
   enabled: boolean;
   /**
-   * Demo: fixed delay before every API ack (ms). Applied even when
-   * `enabled` is false so optimistic UI can be observed before fail-next.
+   * Demo: fixed delay before every API request is handled (ms).
+   * Applied even when `enabled` is false. Runs before the route — so both
+   * successful acks and fail-next / chaos rejections are slowed.
    */
   ackDelayMs: number;
 };
@@ -88,7 +89,8 @@ export async function chaosMiddleware(c: Context, next: Next) {
     return next();
   }
 
-  // Demo ack delay — independent of chaos.enabled (fail-next rides after this).
+  // Demo delay — before the handler. Slows successful acks and rejections
+  // (fail-next / chaos 500) independently of chaos.enabled.
   if (config.ackDelayMs > 0) {
     await sleep(config.ackDelayMs);
   } else if (config.enabled) {

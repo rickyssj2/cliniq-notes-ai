@@ -35,6 +35,7 @@ export {
   saveNoteVersion,
   setDevFailNext,
   setDevChaos,
+  fetchDevChaos,
   fetchDevUsers,
   type DevUser,
 } from "./api/notes-api";

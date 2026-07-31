@@ -8,6 +8,7 @@ import {
 } from "@soulside/domain";
 import {
   applyOptimisticDetailTransition,
+  notesQueryKeys,
   reconcileDetailTransition,
   rollbackDetailTransition,
   transitionNote,
@@ -27,6 +28,7 @@ import {
   runWithCorrelationAsync,
 } from "@shared/correlation";
 import { log } from "@shared/logging";
+import { pushNotice } from "@shared/notices";
 import { track } from "@shared/telemetry";
 import { trackPendingGeneration } from "@shared/realtime";
 import { Button } from "@shared/ui/button";
@@ -61,6 +63,61 @@ const ACTION_SHORTCUT: Partial<Record<NoteAction, string>> = {
   return: "E",
   regenerate: "⇧G",
 };
+
+function apiErrorReason(err: unknown): string {
+  if (!(err instanceof ApiError)) {
+    return err instanceof Error ? err.message : "Unknown error";
+  }
+  const body = err.body;
+  if (typeof body === "object" && body !== null) {
+    if (
+      "reason" in body &&
+      typeof (body as { reason?: unknown }).reason === "string"
+    ) {
+      return (body as { reason: string }).reason;
+    }
+    if (
+      "message" in body &&
+      typeof (body as { message?: unknown }).message === "string"
+    ) {
+      return (body as { message: string }).message;
+    }
+    if (
+      "error" in body &&
+      typeof (body as { error?: unknown }).error === "string"
+    ) {
+      return (body as { error: string }).error;
+    }
+  }
+  return `HTTP ${err.status}`;
+}
+
+function transitionFailureNotice(
+  action: NoteAction,
+  to: string,
+  err: unknown,
+): { title: string; body: string } {
+  const reason = apiErrorReason(err);
+  const status = err instanceof ApiError ? err.status : 0;
+
+  if (status === 409 || /invalid_transition|transition_rejected/i.test(reason)) {
+    if (action === "start_review" || to === "IN_REVIEW") {
+      return {
+        title: "Couldn’t start review",
+        body: `Another reviewer already started reviewing this note, or its status changed. ${reason}`,
+      };
+    }
+    return {
+      title: "Action conflicted",
+      body: `This note changed state before your “${ACTION_LABEL[action] ?? action}” could complete. ${reason}`,
+    };
+  }
+
+  return {
+    title: "Transition failed",
+    body: `Your “${ACTION_LABEL[action] ?? action}” was rolled back. ${reason}`,
+  };
+}
 
 type Props = {
   note: NoteDetail;
@@ -249,6 +306,21 @@ export function NoteActionBar({ note }: Props) {
             rollbackDetailTransition(queryClient, note.id, snapshot);
             patchList(snapshot);
           }
+          const notice = transitionFailureNotice(action, target.to, err);
+          pushNotice({
+            kind: "warning",
+            noteId: note.id,
+            title: notice.title,
+            body: notice.body,
+            ttlMs: 12_000,
+          });
+          // Snapshot may be stale if a peer transition already landed via WS.
+          void queryClient.invalidateQueries({
+            queryKey: notesQueryKeys.detail(note.id),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: notesQueryKeys.lists(),
+          });
           throw err;
         }
       });

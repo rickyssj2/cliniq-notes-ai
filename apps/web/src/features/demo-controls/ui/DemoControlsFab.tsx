@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { setDevChaos } from "@entities/note";
+import { fetchDevChaos, setDevChaos } from "@entities/note";
 import { Button } from "@shared/ui/button";
 import {
   TOGGLE_DEMO_EVENT,
@@ -7,11 +7,12 @@ import {
 } from "../model/store";
 
 const DEFAULT_ACK_DELAY_MS = 2000;
+const MAX_ACK_DELAY_MS = 60_000;
 
 /**
  * Floating demo toolbar (DEV). Toggle with `D` or the FAB button.
- * Global: ack delay + arm fail-after-delay (optimistic rollback demos).
- * Page-scoped actions (force conflict, fail-next, throws) register via the store.
+ * Global: server delay (all responses) + optional fail-next, independently.
+ * Page-scoped actions register via the store.
  */
 export function DemoControlsFab() {
   const open = useDemoControlsStore((s) => s.open);
@@ -21,7 +22,11 @@ export function DemoControlsFab() {
   const message = useDemoControlsStore((s) => s.message);
   const setMessage = useDemoControlsStore((s) => s.setMessage);
 
-  const [ackDelayDraft, setAckDelayDraft] = useState(String(DEFAULT_ACK_DELAY_MS));
+  const [ackDelayDraft, setAckDelayDraft] = useState(
+    String(DEFAULT_ACK_DELAY_MS),
+  );
+  /** Last delay successfully applied on the API (0 = off). */
+  const [activeDelayMs, setActiveDelayMs] = useState(0);
   const [armedKind, setArmedKind] = useState<
     null | "transitions" | "versions"
   >(null);
@@ -33,53 +38,109 @@ export function DemoControlsFab() {
     return () => window.removeEventListener(TOGGLE_DEMO_EVENT, onToggle);
   }, [toggle]);
 
+  useEffect(() => {
+    if (!open) return;
+    void fetchDevChaos()
+      .then((cfg) => {
+        setActiveDelayMs(cfg.ackDelayMs);
+        if (cfg.ackDelayMs > 0) {
+          setAckDelayDraft(String(cfg.ackDelayMs));
+        }
+        if (cfg.failNext.transitions > 0) setArmedKind("transitions");
+        else if (cfg.failNext.versions > 0) setArmedKind("versions");
+        else setArmedKind(null);
+      })
+      .catch(() => {
+        /* ignore — panel still usable */
+      });
+  }, [open]);
+
   const parseDelay = () => {
     const n = Number(ackDelayDraft);
     if (!Number.isFinite(n) || n < 0) return DEFAULT_ACK_DELAY_MS;
-    return Math.min(60_000, Math.round(n));
+    return Math.min(MAX_ACK_DELAY_MS, Math.round(n));
   };
 
-  const armDelayedFail = async (kind: "transitions" | "versions") => {
+  const applyServerDelay = async () => {
     const ms = parseDelay();
     setBusy(true);
     try {
-      await setDevChaos({
-        ackDelayMs: ms,
-        failNext: {
-          transitions: kind === "transitions" ? 1 : 0,
-          versions: kind === "versions" ? 1 : 0,
-        },
-      });
-      setArmedKind(kind);
+      await setDevChaos({ ackDelayMs: ms });
+      setActiveDelayMs(ms);
       setMessage(
-        kind === "transitions"
-          ? `Armed: next transition waits ${ms}ms then 500 — watch optimistic UI, then rollback.`
-          : `Armed: next version save waits ${ms}ms then 500 — watch optimistic UI, then rollback.`,
+        ms > 0
+          ? `Server delay ${ms}ms armed — every API response (acks and rejections) waits before the handler runs.`
+          : "Server delay cleared.",
       );
-      window.setTimeout(() => {
-        setArmedKind((current) => (current === kind ? null : current));
-      }, ms + 750);
     } catch (err) {
       setMessage(
-        err instanceof Error ? err.message : "Failed to arm delayed fail",
+        err instanceof Error ? err.message : "Failed to apply server delay",
       );
     } finally {
       setBusy(false);
     }
   };
 
-  const clearAckDelay = async () => {
+  const clearServerDelay = async () => {
+    setBusy(true);
+    try {
+      await setDevChaos({ ackDelayMs: 0 });
+      setActiveDelayMs(0);
+      setMessage("Server delay cleared (fail-next unchanged).");
+    } catch (err) {
+      setMessage(
+        err instanceof Error ? err.message : "Failed to clear server delay",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const armFailNext = async (kind: "transitions" | "versions") => {
     setBusy(true);
     try {
       await setDevChaos({
-        ackDelayMs: 0,
-        failNext: { transitions: 0, versions: 0 },
+        failNext: {
+          transitions: kind === "transitions" ? 1 : 0,
+          versions: kind === "versions" ? 1 : 0,
+        },
       });
-      setArmedKind(null);
-      setMessage("Ack delay cleared; fail-next counters reset.");
+      setArmedKind(kind);
+      const delayHint =
+        activeDelayMs > 0
+          ? ` after the armed ${activeDelayMs}ms server delay`
+          : " immediately (no server delay armed)";
+      setMessage(
+        kind === "transitions"
+          ? `Armed: next transition → 500${delayHint}.`
+          : `Armed: next version save → 500${delayHint}.`,
+      );
+      window.setTimeout(
+        () => {
+          setArmedKind((current) => (current === kind ? null : current));
+        },
+        activeDelayMs + 750,
+      );
     } catch (err) {
       setMessage(
-        err instanceof Error ? err.message : "Failed to clear ack delay",
+        err instanceof Error ? err.message : "Failed to arm fail-next",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearFailNext = async () => {
+    setBusy(true);
+    try {
+      await setDevChaos({
+        failNext: { transitions: 0, versions: 0, conflicts: 0 },
+      });
+      setArmedKind(null);
+      setMessage("Fail-next counters cleared (server delay unchanged).");
+    } catch (err) {
+      setMessage(
+        err instanceof Error ? err.message : "Failed to clear fail-next",
       );
     } finally {
       setBusy(false);
@@ -102,25 +163,59 @@ export function DemoControlsFab() {
           </div>
 
           <section className="space-y-2 rounded-md border border-dashed border-(--border) bg-stone-50/80 p-2">
-            <p className="font-semibold text-(--foreground)">
-              Optimistic rollback
-            </p>
+            <p className="font-semibold text-(--foreground)">Server delay</p>
             <p className="text-[10px] leading-relaxed text-(--muted)">
-              Delay the server ack, then reject — UI patches immediately, then
-              rolls back when the 500 lands.
+              Armed separately from fail-next. Holds every API request before
+              the handler — slows successful acks and rejections alike.
             </p>
             <label className="flex items-center gap-2">
-              <span className="shrink-0 text-(--muted)">Ack delay (ms)</span>
+              <span className="shrink-0 text-(--muted)">Delay (ms)</span>
               <input
                 type="number"
                 min={0}
-                max={60000}
+                max={MAX_ACK_DELAY_MS}
                 step={100}
                 value={ackDelayDraft}
                 onChange={(e) => setAckDelayDraft(e.target.value)}
                 className="w-full rounded-md border border-(--border) bg-white px-2 py-1 font-mono text-[11px]"
               />
             </label>
+            <p className="font-mono text-[10px] text-(--muted)">
+              Active:{" "}
+              {activeDelayMs > 0 ? `${activeDelayMs}ms` : "off"}
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={activeDelayMs > 0 ? "default" : "outline"}
+                className="justify-start"
+                disabled={busy}
+                onClick={() => void applyServerDelay()}
+              >
+                {activeDelayMs > 0
+                  ? `Update delay → ${parseDelay()}ms`
+                  : `Apply delay (${parseDelay()}ms)`}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="justify-start"
+                disabled={busy || activeDelayMs === 0}
+                onClick={() => void clearServerDelay()}
+              >
+                Clear server delay
+              </Button>
+            </div>
+          </section>
+
+          <section className="space-y-2 rounded-md border border-dashed border-(--border) bg-stone-50/80 p-2">
+            <p className="font-semibold text-(--foreground)">Fail-next</p>
+            <p className="text-[10px] leading-relaxed text-(--muted)">
+              One-shot 500 after the (optional) armed delay — use with delay to
+              watch optimistic UI then rollback.
+            </p>
             <div className="flex flex-col gap-1.5">
               <Button
                 type="button"
@@ -128,11 +223,11 @@ export function DemoControlsFab() {
                 variant={armedKind === "transitions" ? "default" : "outline"}
                 className="justify-start"
                 disabled={busy}
-                onClick={() => void armDelayedFail("transitions")}
+                onClick={() => void armFailNext("transitions")}
               >
                 {armedKind === "transitions"
-                  ? `Armed: transition fail @ ${parseDelay()}ms`
-                  : "Arm: next transition fails after delay"}
+                  ? "Armed: next transition → 500"
+                  : "Arm: next transition → 500"}
               </Button>
               <Button
                 type="button"
@@ -140,11 +235,11 @@ export function DemoControlsFab() {
                 variant={armedKind === "versions" ? "default" : "outline"}
                 className="justify-start"
                 disabled={busy}
-                onClick={() => void armDelayedFail("versions")}
+                onClick={() => void armFailNext("versions")}
               >
                 {armedKind === "versions"
-                  ? `Armed: version fail @ ${parseDelay()}ms`
-                  : "Arm: next version save fails after delay"}
+                  ? "Armed: next version save → 500"
+                  : "Arm: next version save → 500"}
               </Button>
               <Button
                 type="button"
@@ -152,9 +247,9 @@ export function DemoControlsFab() {
                 variant="ghost"
                 className="justify-start"
                 disabled={busy}
-                onClick={() => void clearAckDelay()}
+                onClick={() => void clearFailNext()}
               >
-                Clear ack delay / fail-next
+                Clear fail-next
               </Button>
             </div>
           </section>
