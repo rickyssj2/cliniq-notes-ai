@@ -133,9 +133,11 @@ export function attachRealtime(server: Server) {
           break;
         }
         case "unsubscribe": {
+          // Data-channel only. Do not clear presence here — viewport scroll
+          // unsubscribes dozens of rows and would spam empty note.presence.
+          // Presence is cleared via presence.leave or socket close.
           for (const noteId of msg.noteIds ?? []) {
             client.noteIds.delete(noteId);
-            store.setPresence(noteId, id, null);
           }
           break;
         }

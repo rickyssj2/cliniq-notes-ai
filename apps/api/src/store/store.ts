@@ -852,8 +852,14 @@ export class NoteStore {
       map = new Map();
       this.presence.set(noteId, map);
     }
-    if (!viewer) map.delete(socketId);
-    else map.set(socketId, { ...viewer, socketId });
+
+    if (!viewer) {
+      // No-op leave (e.g. never joined) — don't fan out empty presence.
+      if (!map.has(socketId)) return;
+      map.delete(socketId);
+    } else {
+      map.set(socketId, { ...viewer, socketId });
+    }
 
     const viewers = this.listPresence(noteId);
     this.emit({
