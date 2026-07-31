@@ -48,3 +48,17 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+declare global {
+  interface Window {
+    __TANSTACK_QUERY_CLIENT__?: QueryClient;
+  }
+}
+
+/**
+ * Handle the TanStack Query browser extension looks for. Development only —
+ * the cache holds clinical text, so production must not publish it on `window`.
+ */
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  window.__TANSTACK_QUERY_CLIENT__ = queryClient;
+}
