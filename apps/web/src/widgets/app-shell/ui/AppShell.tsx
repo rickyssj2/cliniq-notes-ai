@@ -44,6 +44,12 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <a
+        href="#main"
+        className="skip-link absolute top-2 left-2 z-30 rounded-md bg-(--card) px-3 py-2 text-sm font-medium shadow-lg outline-2 outline-offset-2 outline-(--accent)"
+      >
+        Skip to main content
+      </a>
       <header className="sticky top-0 z-20 border-b border-(--border) bg-(--card)/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
           <p className="shrink-0 text-sm font-semibold tracking-tight">
@@ -164,7 +170,9 @@ export function AppShell() {
         </div>
       </header>
       <ConnectivityBanner />
-      <div className="flex-1">
+      {/* The one main landmark: every route, skeleton and error fallback below
+          it inherits the landmark, so no page can forget to declare one. */}
+      <main id="main" className="flex-1">
         <AppErrorBoundary
           label="page"
           variant="page"
@@ -172,7 +180,7 @@ export function AppShell() {
         >
           <Outlet />
         </AppErrorBoundary>
-      </div>
+      </main>
       <footer className="mt-auto border-t border-(--border) bg-(--card)/80">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-(--muted) sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>

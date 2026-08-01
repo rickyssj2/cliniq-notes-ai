@@ -35,7 +35,7 @@ export function HomePage() {
   }, [register, clear]);
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-3xl flex-col justify-center gap-6 px-6 py-16">
+    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-3xl flex-col justify-center gap-6 px-6 py-16">
       <DevThrowRenderButton
         id="home-page"
         hidden
@@ -89,6 +89,6 @@ export function HomePage() {
           <kbd className="font-mono">T</kbd> telemetry.
         </p>
       ) : null}
-    </main>
+    </div>
   );
 }

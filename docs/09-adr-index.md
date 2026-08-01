@@ -87,10 +87,10 @@ Short Architecture Decision Records. Each answers: **Chose X over Y because Z.**
 
 ### ADR-10 — Testing posture (pyramid, not exhaustive UI)
 
-**Chose:** Domain unit (46) + web effectful modules (33) + API sim + Playwright (11).  
+**Chose:** Domain unit (46) + web effectful modules (33) + API sim + Playwright (20: 11 workflow + 9 axe WCAG 2.1 AA).  
 **Over:** Exhaustive UI permutation / visual regression / 100k CI timing.  
-**Because:** Protects invariants and critical paths; chaos/scale verified manually via seed + Demo FAB.  
-**Tradeoff:** Gaps in a11y CI and long wall-clock offline sleeps — documented deliberately.
+**Because:** Protects invariants and critical paths; chaos/scale verified manually via seed + Demo FAB; axe suite scans reviewer states rather than routes.  
+**Tradeoff:** Gaps in manual screen-reader passes and long wall-clock offline sleeps — documented deliberately.
 
 ---
 

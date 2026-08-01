@@ -72,7 +72,7 @@ export function NotesListPage() {
   else if (notes.length === 0) emptyMode = "empty";
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-6 py-8 pb-28">
+    <div className="mx-auto max-w-6xl space-y-6 px-6 py-8 pb-28">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Notes</h1>
         <p className="max-w-2xl text-sm text-(--muted)">
@@ -121,6 +121,6 @@ export function NotesListPage() {
       />
 
       <BulkActionsBar notesById={notesById} />
-    </main>
+    </div>
   );
 }

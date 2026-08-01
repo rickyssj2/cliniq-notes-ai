@@ -3,7 +3,7 @@
 :root {
   --background: #f7f4ef;
   --foreground: #1c1917;
-  --muted: #78716c;
+  --muted: #57534e;
   --border: #e7e5e4;
   --accent: #0f766e;
   --accent-foreground: #f0fdfa;
@@ -38,6 +38,19 @@ body {
 
 /* Visually hidden but announced — prefer over empty <label> wrappers. */
 .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Skip link: stays out of the layout until focused, then paints as a real control. */
+.skip-link:not(:focus) {
   position: absolute;
   width: 1px;
   height: 1px;

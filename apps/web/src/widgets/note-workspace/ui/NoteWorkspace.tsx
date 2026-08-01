@@ -218,6 +218,7 @@ export function NoteWorkspace({ note }: Props) {
       <div className="grid gap-6 xl:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)_minmax(16rem,20rem)]">
         {/* Left: timeline sidebar */}
         <aside
+          aria-label="Review timeline"
           className={cn(
             "xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:self-start",
             "rounded-lg border border-(--border) bg-(--card) p-4",
@@ -345,6 +346,7 @@ export function NoteWorkspace({ note }: Props) {
 
         {/* Right: version history sidebar */}
         <aside
+          aria-label="Version history"
           className={cn(
             "xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:self-start",
             "rounded-lg border border-(--border) bg-(--card) p-4",

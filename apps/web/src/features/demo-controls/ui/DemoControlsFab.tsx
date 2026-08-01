@@ -175,41 +175,45 @@ function DemoSection({
           : "border-(--border)"
       }`}
     >
-      <button
-        type="button"
-        className="flex w-full items-center gap-1.5 px-2.5 py-2 text-left"
-        aria-expanded={open}
-        onClick={() => onToggle(id)}
-      >
-        <span
-          className="font-mono text-xs text-(--muted)"
-          aria-hidden
+      {/* Disclosure and info tip are siblings: a button inside a button has no
+          defined activation behaviour and axe flags it as nested-interactive. */}
+      <div className="flex w-full items-center gap-1.5 px-2.5 py-2">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          aria-expanded={open}
+          onClick={() => onToggle(id)}
         >
-          {open ? "▾" : "▸"}
-        </span>
-        {active ? (
           <span
-            className="h-2 w-2 shrink-0 rounded-full bg-teal-600"
-            title="Active"
+            className="font-mono text-xs text-(--muted)"
             aria-hidden
-          />
-        ) : null}
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-(--foreground)">
-          {title}
-        </span>
-        {badge ? (
-          <span
-            className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] ${
-              active
-                ? "bg-teal-600 text-white"
-                : "bg-stone-200/80 text-(--muted)"
-            }`}
           >
-            {badge}
+            {open ? "▾" : "▸"}
           </span>
-        ) : null}
+          {active ? (
+            <span
+              className="h-2 w-2 shrink-0 rounded-full bg-teal-600"
+              title="Active"
+              aria-hidden
+            />
+          ) : null}
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-(--foreground)">
+            {title}
+          </span>
+          {badge ? (
+            <span
+              className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] ${
+                active
+                  ? "bg-teal-600 text-white"
+                  : "bg-stone-200/80 text-(--foreground)"
+              }`}
+            >
+              {badge}
+            </span>
+          ) : null}
+        </button>
         <InfoTip text={hint} />
-      </button>
+      </div>
       {open ? <div className="space-y-2 px-2.5 pb-2.5">{children}</div> : null}
     </section>
   );

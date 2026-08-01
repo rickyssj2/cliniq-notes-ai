@@ -304,15 +304,32 @@ React Compiler stance:
 - A correlation id travels the whole path: out on the request, back on the response, attached to the resulting live event, and included in logs and telemetry. Tracing one save across client, server, and socket is a single search.
 - Errors surface as something actionable, such as a restored draft, a merge UI, or a queued write notice. Error boundaries are nested so one failing panel does not take down the screen.
 
-## Accessibility
+## Accessibility — WCAG 2.1 AA standing
 
-- Target is WCAG 2.2 AA on the paths reviewers use constantly.
-- Navigation and the identity switcher are labelled controls inside landmarks.
-- Filters and the table use native controls, and row checkboxes carry real label text rather than relying on the surrounding column.
-- Each SOAP section has its own label.
-- Disabled actions expose the machine's reason through a title, so users learn why approval is unavailable instead of finding a dead button.
-- Dialogs are marked as dialogs with labelled titles.
-- **Known gaps:** no automated accessibility suite in CI, focus containment in the merge dialog is lighter than it should be, and live region announcements for status and presence are minimal.
+**Standing:** targets and is **partially conformant** to WCAG 2.1 Level AA on the paths a reviewer occupies. Automated scans of those states report zero axe violations under the `wcag2a` / `wcag2aa` / `wcag21a` / `wcag21aa` tags. This is not a claim of full product conformance — see known gaps below.
+
+**How it is verified**
+
+- `@axe-core/playwright` runs in `e2e/a11y.spec.ts` (9 cases) against states, not just routes: home, the populated virtualized queue, the bulk-action bar with rows selected, an editable note, a read-only auditor view, the three-way merge dialog, the keyboard-shortcut help, the offline banner, and the skip-link → `#main` path.
+- Re-run with `pnpm test:e2e -- e2e/a11y.spec.ts`. A growing allowlist of violations is deliberately refused — the suite asserts an empty list.
+- A Lighthouse accessibility score on a freshly loaded page is supporting evidence only; Lighthouse does not open dialogs or switch roles, which is why the axe suite exists.
+
+**What is in place**
+
+- One `main` landmark lives in the app shell, so every route, skeleton, and error fallback inherits it. Pages do not declare their own.
+- A skip link is the first focusable control and targets `#main`.
+- Named landmarks for the review timeline and version history sidebars; primary and mobile navigation are labelled.
+- Filters, table checkboxes, and each SOAP section use native labelled controls.
+- Dialogs (`role="dialog"` / `aria-modal`) carry labelled titles.
+- Disabled actions expose the lifecycle machine's reason so users learn why approval is unavailable.
+- Muted text uses a stone tone that clears the 4.5:1 contrast floor for small UI copy.
+
+**Known gaps (partially supports)**
+
+- Focus containment in the merge dialog is lighter than a production modal: Escape closes it, but Tab can leave the dialog into the page behind.
+- Live region announcements for status and presence changes are minimal — toasts use `aria-live="polite"`, presence avatar updates do not.
+- Disabled workflow buttons still use native `disabled` (removing them from the tab order) rather than a focusable `aria-disabled` pattern with `aria-describedby`, so keyboard users cannot reach the reason without a pointer.
+- There is no formal VPAT / ACR and no manual screen-reader pass recorded for this take-home.
 
 ## Keyboard shortcuts
 
@@ -348,7 +365,7 @@ The cheapest layer that can prove a rule owns it.
 - A live status event arriving before the acknowledgement of the request that caused it.
 - A burst of note fetches as a load check.
 
-**Browser, eleven tests for wiring only a real browser shows**
+**Browser, twenty tests for wiring only a real browser shows**
 
 - Core path from queue through review to approval.
 - Rejection with a reason, and the forced conflict merge.
@@ -357,6 +374,7 @@ The cheapest layer that can prove a rule owns it.
 - An offline session that queues edits and drains cleanly when the network returns.
 - A transition whose HTTP response is held open, proving status arrives over the socket first.
 - A light session soak opening many notes in sequence to confirm navigation and the live connection stay healthy.
+- Nine WCAG 2.1 AA axe scans across the states above (see Accessibility).
 
 **Deliberately not covered**
 

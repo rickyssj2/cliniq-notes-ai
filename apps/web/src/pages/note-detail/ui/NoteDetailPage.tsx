@@ -11,9 +11,9 @@ export function NoteDetailPage() {
 
   if (!noteId) {
     return (
-      <main className="px-6 py-10">
+      <div className="px-6 py-10">
         <p>Missing note id.</p>
-      </main>
+      </div>
     );
   }
 
@@ -24,11 +24,11 @@ export function NoteDetailPage() {
 
   if (query.isLoading) {
     return (
-      <main className="mx-auto max-w-4xl space-y-4 px-6 py-10">
+      <div className="mx-auto max-w-4xl space-y-4 px-6 py-10">
         <div className="h-8 w-48 animate-pulse rounded bg-stone-200" />
         <div className="h-40 animate-pulse rounded bg-stone-200" />
         <div className="h-64 animate-pulse rounded bg-stone-200" />
-      </main>
+      </div>
     );
   }
 
@@ -39,7 +39,7 @@ export function NoteDetailPage() {
 
   if (network) {
     return (
-      <main className="mx-auto max-w-3xl space-y-4 px-6 py-10">
+      <div className="mx-auto max-w-3xl space-y-4 px-6 py-10">
         <h1 className="text-2xl font-semibold">You’re offline</h1>
         <p className="text-sm text-(--muted)">
           This note isn’t in the local cache. Open it while online first, or go
@@ -51,12 +51,12 @@ export function NoteDetailPage() {
         >
           ← Back to notes
         </Link>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-4 px-6 py-10">
+    <div className="mx-auto max-w-3xl space-y-4 px-6 py-10">
       <h1 className="text-2xl font-semibold">
         {notFound ? "Note not found" : "Couldn’t load note"}
       </h1>
@@ -73,6 +73,6 @@ export function NoteDetailPage() {
       >
         ← Back to notes
       </Link>
-    </main>
+    </div>
   );
 }

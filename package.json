@@ -18,6 +18,7 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.62.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.1",
