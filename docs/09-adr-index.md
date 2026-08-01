@@ -8,7 +8,7 @@ Short Architecture Decision Records. Each answers: **Chose X over Y because Z.**
 
 **Chose:** Hand-rolled transition table in `packages/domain`.  
 **Over:** XState, Redux Toolkit, status `if`s in components.  
-**Because:** Same pure module validates SPA *and* mock API; zero runtime framework tax; trivial to unit test (44 cases).  
+**Because:** Same pure module validates SPA *and* mock API; zero runtime framework tax; trivial to unit test (46 cases).  
 **Tradeoff:** Less visual tooling / interpreters than XState; we document edges in Mermaid instead.
 
 ---
@@ -87,7 +87,7 @@ Short Architecture Decision Records. Each answers: **Chose X over Y because Z.**
 
 ### ADR-10 — Testing posture (pyramid, not exhaustive UI)
 
-**Chose:** Domain unit (44) + web effectful modules (25) + API sim + Playwright (11).  
+**Chose:** Domain unit (46) + web effectful modules (33) + API sim + Playwright (11).  
 **Over:** Exhaustive UI permutation / visual regression / 100k CI timing.  
 **Because:** Protects invariants and critical paths; chaos/scale verified manually via seed + Demo FAB.  
 **Tradeoff:** Gaps in a11y CI and long wall-clock offline sleeps — documented deliberately.
@@ -100,3 +100,12 @@ Short Architecture Decision Records. Each answers: **Chose X over Y because Z.**
 **Over:** One-shot decrement.  
 **Because:** Rollback demos need repeated failures with optional server delay; one-shot cleared before the reviewer could observe optimism.  
 **Tradeoff:** Easy to leave armed — UI badges + Clear control; sim sets `failNext: {}` when stabilizing scenarios.
+
+---
+
+### ADR-12 — The core folds its own effects (`applyTransition`)
+
+**Chose:** `can` / `canTransitionTo` return effects, and `applyTransition` folds them into the next `LifecycleState`. Adapters store that and honour `requiresNewVersion`.  
+**Over:** Each adapter switching over `TransitionEffect` itself (what the API store and the web patcher used to do).  
+**Because:** Two exhaustive switches drift. They already had: a foreign `approve` left the reviewer assigned in the browser cache after the API released them, and `amend` kept a stale `approvedAt`. One fold, one place to extend.  
+**Tradeoff:** The core now owns a small piece of state-shaping, not only decisions — accepted, since it shapes its own vocabulary (ids and flags) and never touches storage. Adapters keep the mapping they alone can do: id → `UserRef`, flag → version row.

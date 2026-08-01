@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getAvailableActions,
-  getLifecycleBanner,
   type NoteAction,
   type NoteDetail,
 } from "@soulside/domain";
 import {
   applyOptimisticDetailTransition,
+  getLifecycleBanner,
   notesQueryKeys,
   reconcileDetailTransition,
   rollbackDetailTransition,

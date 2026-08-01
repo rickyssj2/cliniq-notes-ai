@@ -26,10 +26,10 @@ export {
   findTransition,
   outgoingUserTransitions,
   can,
-  applyServerStatusChange,
+  canTransitionTo,
+  applyTransition,
   getAvailableActions,
   isContentReadOnly,
-  getLifecycleBanner,
   canEditContent,
 } from "./note-machine";
 
@@ -42,5 +42,7 @@ export type {
   TransitionFailure,
   TransitionResult,
   AvailableAction,
+  LifecycleState,
+  AppliedTransition,
   ContentEditResult,
 } from "./note-machine";

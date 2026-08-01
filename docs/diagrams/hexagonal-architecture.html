@@ -115,7 +115,7 @@
             </div>
             <div class="mono">entities/note/lib/apply-realtime-event.ts</div>
             <div class="card-body">
-              Validates a pushed <code>from → to</code> through <code>applyServerStatusChange</code> before touching any cache.
+              Knows the destination but not the edge, so it asks <code>canTransitionTo</code> before touching any cache.
             </div>
           </div>
 
@@ -141,7 +141,7 @@
             <div class="hex-lines">
               TRANSITIONS table<br />
               guards → reason strings<br />
-              effects → data, not actions
+              effects folded into state
             </div>
             <span class="zero">Pure · no I/O · no state</span>
           </div>
@@ -170,7 +170,7 @@
         <div class="head-l"></div>
         <div class="line"></div>
         <div class="return-text">
-          <div class="return-title">verdict + <code>TransitionEffect[]</code> — each adapter applies them</div>
+          <div class="return-title">verdict + the next <code>LifecycleState</code> — each adapter stores it</div>
           <div class="return-sub">This return value is what replaces driven ports: the core describes the change, the caller performs it.</div>
         </div>
         <div class="line"></div>

@@ -261,8 +261,8 @@ The cheapest layer that can prove a rule owns it.
 
 **Unit, no browser or server needed**
 
-- Domain has 44 cases pinning every lifecycle edge, assignment guards, admin break-glass, the extra approval step, the amendment window, and content edit rules per status.
-- Client has 25 cases covering autosave scheduling, draft acknowledgement including the slow save and keep typing case, queue ordering and collapsing, drain behaviour for conflicts and terminal failures, live event deduplication, and telemetry redaction.
+- Domain has 46 cases pinning every lifecycle edge, assignment guards, admin break-glass, the extra approval step, the amendment window, the fields each transition produces, and content edit rules per status.
+- Client has 33 cases covering autosave scheduling, draft acknowledgement including the slow save and keep typing case, queue ordering and collapsing, drain behaviour for conflicts and terminal failures, live event deduplication and reconciliation, and telemetry redaction.
 
 **API simulation, protocol behaviour under real concurrency**
 

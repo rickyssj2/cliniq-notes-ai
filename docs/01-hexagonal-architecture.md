@@ -5,9 +5,9 @@
 | Hexagonal rule | Here? |
 |---|---|
 | Domain has no UI / DB / HTTP | **Yes** — `packages/domain` |
-| Outside enters via a port | **Yes** — `can` / `getAvailableActions` / `applyServerStatusChange` |
+| Outside enters via a port | **Yes** — `can` / `canTransitionTo` / `getAvailableActions` / `applyTransition` |
 | UI and API share the same core | **Yes** |
-| Formal outbound Port interfaces (`NoteRepository`) | **No** — the core returns `TransitionEffect[]`; both adapters apply them (functional core / imperative shell) |
+| Formal outbound Port interfaces (`NoteRepository`) | **No** — the core folds effects itself (`applyTransition`) and hands back the resulting lifecycle fields; the caller only stores them (functional core / imperative shell) |
 | Every feature (list, WS, telemetry) is hexagonal | **No** — FSD + Query/Zustand around the core |
 
 *“Hexagonal core for note lifecycle; the rest is FSD + state topology.”*
@@ -25,4 +25,6 @@
 | Core (pure rules, no I/O) | `packages/domain/src/note-machine/` |
 | Driving adapter — UI | `apps/web/src/features/transition-note/` |
 | Driving adapter — API | `apps/api` store + REST/WS |
-| Driven ports | **None** — the core never calls out; it returns `TransitionEffect[]` and the caller applies them |
+| Driven ports | **None** — the core never calls out; it returns the next `LifecycleState` and the caller stores it |
+
+Adapters map between the core's vocabulary and their own — reviewer id to `UserRef` in the browser, `requiresNewVersion` to an actual version row in the API. Neither reads `TransitionEffect` types; interpreting effects is the core's job.

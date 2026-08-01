@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   AMEND_GRACE_MS,
-  applyServerStatusChange,
+  applyTransition,
   can,
+  canTransitionTo,
   getAvailableActions,
-  getLifecycleBanner,
   isContentReadOnly,
   canEditContent,
   TRANSITIONS,
@@ -190,10 +190,10 @@ describe("IN_REVIEW actions", () => {
     }
   });
 
-  it("approve skips MFA when source is server", () => {
+  it("approve skips MFA when the transition was already decided", () => {
     const result = can(
       "approve",
-      inReview({ source: "server", mfaVerified: false }),
+      inReview({ source: "system", mfaVerified: false }),
     );
     expect(result).toMatchObject({ ok: true, to: "APPROVED" });
   });
@@ -305,13 +305,13 @@ describe("amend and lock grace window", () => {
     expect(locked).toMatchObject({ ok: true, to: "LOCKED" });
   });
 
-  it("server can force grace_expired before window elapses", () => {
+  it("an already-decided lock is accepted before the window elapses", () => {
     const result = can(
       "grace_expired",
       base({
         status: "APPROVED",
         approvedAt: APPROVED_RECENT,
-        source: "server",
+        source: "system",
       }),
     );
     expect(result).toMatchObject({ ok: true, to: "LOCKED" });
@@ -399,26 +399,10 @@ describe("getAvailableActions", () => {
   });
 });
 
-describe("getLifecycleBanner", () => {
-  it("explains LOCKED without requiring UI status branches", () => {
-    expect(getLifecycleBanner("LOCKED")).toMatch(/LOCKED.*24h/i);
-  });
-
-  it("explains GENERATING", () => {
-    expect(getLifecycleBanner("GENERATING")).toMatch(/generating/i);
-  });
-
-  it("returns null when user actions exist", () => {
-    expect(getLifecycleBanner("READY_FOR_REVIEW")).toBeNull();
-    expect(getLifecycleBanner("IN_REVIEW")).toBeNull();
-  });
-});
-
-describe("applyServerStatusChange", () => {
+describe("canTransitionTo", () => {
   it("maps READY_FOR_REVIEW → IN_REVIEW through start_review", () => {
-    const result = applyServerStatusChange({
+    const result = canTransitionTo("IN_REVIEW", {
       status: "READY_FOR_REVIEW",
-      to: "IN_REVIEW",
       assignedReviewerId: null,
       approvedAt: null,
       now: NOW,
@@ -431,10 +415,9 @@ describe("applyServerStatusChange", () => {
     });
   });
 
-  it("rejects illegal server jumps", () => {
-    const result = applyServerStatusChange({
+  it("rejects illegal jumps", () => {
+    const result = canTransitionTo("APPROVED", {
       status: "GENERATING",
-      to: "APPROVED",
       assignedReviewerId: null,
       approvedAt: null,
       now: NOW,
@@ -442,6 +425,118 @@ describe("applyServerStatusChange", () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/No legal transition/);
+  });
+
+  it("leaves the intent gates to the caller's declared source", () => {
+    const ctx = {
+      status: "IN_REVIEW" as const,
+      assignedReviewerId: "dr_a",
+      approvedAt: null,
+      now: NOW,
+      actor: actor("dr_a", "REVIEWER"),
+    };
+
+    // Observing a change that already happened: MFA was proven elsewhere.
+    expect(canTransitionTo("APPROVED", { ...ctx, source: "system" })).toMatchObject({
+      ok: true,
+      to: "APPROVED",
+    });
+
+    // Asking for the same change here still has to prove it.
+    const asUser = canTransitionTo("APPROVED", { ...ctx, source: "user" });
+    expect(asUser.ok).toBe(false);
+    if (!asUser.ok) expect(asUser.reason).toMatch(/MFA/);
+  });
+});
+
+describe("applyTransition", () => {
+  const fresh = {
+    status: "READY_FOR_REVIEW" as const,
+    assignedReviewerId: null,
+    approvedAt: null,
+  };
+
+  function decide(
+    action: NoteAction,
+    ctx: Partial<MachineContext> & Pick<MachineContext, "status">,
+  ) {
+    const result = can(action, base(ctx));
+    if (!result.ok) throw new Error(`expected ${action} to be allowed`);
+    return result;
+  }
+
+  it("assigns the acting reviewer on start_review", () => {
+    const result = decide("start_review", {
+      status: "READY_FOR_REVIEW",
+      actor: actor("dr_a", "REVIEWER"),
+    });
+    expect(applyTransition(fresh, result)).toEqual({
+      status: "IN_REVIEW",
+      assignedReviewerId: "dr_a",
+      approvedAt: null,
+      requiresNewVersion: false,
+    });
+  });
+
+  it("stamps approvedAt and releases the reviewer on approve", () => {
+    const result = decide("approve", {
+      status: "IN_REVIEW",
+      assignedReviewerId: "dr_a",
+      actor: actor("dr_a", "REVIEWER"),
+      mfaVerified: true,
+    });
+    expect(
+      applyTransition(
+        { status: "IN_REVIEW", assignedReviewerId: "dr_a", approvedAt: null },
+        result,
+      ),
+    ).toEqual({
+      status: "APPROVED",
+      assignedReviewerId: null,
+      approvedAt: NOW,
+      requiresNewVersion: false,
+    });
+  });
+
+  it("clears approvedAt and demands a new version on amend", () => {
+    const result = decide("amend", {
+      status: "APPROVED",
+      approvedAt: APPROVED_RECENT,
+      actor: actor("dr_c", "CLINICIAN"),
+    });
+    expect(
+      applyTransition(
+        {
+          status: "APPROVED",
+          assignedReviewerId: null,
+          approvedAt: APPROVED_RECENT,
+        },
+        result,
+      ),
+    ).toEqual({
+      status: "AMENDED",
+      assignedReviewerId: null,
+      approvedAt: null,
+      requiresNewVersion: true,
+    });
+  });
+
+  it("leaves untouched fields alone", () => {
+    const result = decide("regenerate", {
+      status: "FAILED",
+      actor: actor("dr_c", "CLINICIAN"),
+    });
+    expect(
+      applyTransition(
+        { status: "FAILED", assignedReviewerId: "dr_a", approvedAt: NOW },
+        result,
+      ),
+    ).toEqual({
+      status: "GENERATING",
+      assignedReviewerId: "dr_a",
+      approvedAt: NOW,
+      requiresNewVersion: false,
+    });
   });
 });
 

@@ -126,6 +126,76 @@ describe("applyRealtimeEvent", () => {
     expect(applyRealtimeEvent(qc, first)).toBe(true);
   });
 
+  it("derives cache fields from the machine's effects, not the target status", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(notesQueryKeys.detail("note_1"), detailFixture());
+
+    applyRealtimeEvent(qc, {
+      type: "note.status_changed",
+      eventId: `evt_approve_${crypto.randomUUID()}`,
+      noteId: "note_1",
+      fromStatus: "IN_REVIEW",
+      toStatus: "APPROVED",
+      actor: { id: "dr_a", displayName: "Dr. A", role: "REVIEWER" },
+      at: "2025-01-01T02:00:00.000Z",
+    });
+
+    const detail = qc.getQueryData<NoteDetail>(notesQueryKeys.detail("note_1"));
+    expect(detail?.status).toBe("APPROVED");
+    expect(detail?.approvedAt).toBe("2025-01-01T02:00:00.000Z");
+    // approve releases the reviewer — the cache must match what the API stored.
+    expect(detail?.assignedReviewer).toBeNull();
+  });
+
+  it("clears approvedAt when an approved note is amended elsewhere", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(
+      notesQueryKeys.detail("note_1"),
+      detailFixture({
+        status: "APPROVED",
+        assignedReviewer: null,
+        approvedAt: "2025-01-01T01:00:00.000Z",
+      }),
+    );
+
+    applyRealtimeEvent(qc, {
+      type: "note.status_changed",
+      eventId: `evt_amend_${crypto.randomUUID()}`,
+      noteId: "note_1",
+      fromStatus: "APPROVED",
+      toStatus: "AMENDED",
+      actor: { id: "dr_c", displayName: "Dr. C", role: "CLINICIAN" },
+      at: "2025-01-01T02:00:00.000Z",
+    });
+
+    const detail = qc.getQueryData<NoteDetail>(notesQueryKeys.detail("note_1"));
+    expect(detail?.status).toBe("AMENDED");
+    expect(detail?.approvedAt).toBeNull();
+  });
+
+  it("leaves the cache alone when the pushed edge is illegal", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(
+      notesQueryKeys.detail("note_1"),
+      detailFixture({ status: "GENERATING", assignedReviewer: null }),
+    );
+
+    applyRealtimeEvent(qc, {
+      type: "note.status_changed",
+      eventId: `evt_illegal_${crypto.randomUUID()}`,
+      noteId: "note_1",
+      fromStatus: "GENERATING",
+      toStatus: "APPROVED",
+      actor: { id: "dr_a", displayName: "Dr. A", role: "REVIEWER" },
+      at: "2025-01-01T02:00:00.000Z",
+    });
+
+    const detail = qc.getQueryData<NoteDetail>(notesQueryKeys.detail("note_1"));
+    expect(detail?.status).toBe("GENERATING");
+    // No status toast either — nothing was applied.
+    expect(useNoticeStore.getState().items).toHaveLength(0);
+  });
+
   it("toasts when a foreign version silently hydrates a clean draft", () => {
     const qc = new QueryClient();
     qc.setQueryData(notesQueryKeys.detail("note_1"), detailFixture());

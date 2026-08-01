@@ -112,20 +112,19 @@
     <div id="canvas">
       <div class="title">Effect flow — the core decides, the caller performs</div>
       <div class="subtitle">
-        <code>can()</code> answers with a verdict and a list of effects. Nothing inside <code>packages/domain</code> mutates state; the two
-        appliers below are the only writers, and they read from the same list.
+        <code>can()</code> answers with a verdict and a list of effects; <code>applyTransition()</code> folds that list into the fields it
+        produces. Effects are interpreted once, in the core — adapters store the result and never switch on an effect type.
       </div>
 
       <div class="stage io">
         <div class="panel">
           <div class="panel-head">
-            <div class="panel-title">Call</div>
+            <div class="panel-title">Two ways to ask</div>
             <div class="panel-note">packages/domain/src/note-machine/machine.ts</div>
           </div>
           <div class="kv">
-            <b>can(action, ctx)</b> — one of 10 actions<br />
-            <code>generation.complete</code> <code>regenerate</code> <code>start_review</code> <code>return</code> <code>approve</code>
-            <code>reject</code> <code>resubmit</code> <code>amend</code> …
+            <b>can(action, ctx)</b> — the caller knows which of the 10 actions it wants<br />
+            <b>canTransitionTo(to, ctx)</b> — the caller only learned the destination (a pushed event); the core resolves the edge
           </div>
         </div>
         <div class="panel">
@@ -135,7 +134,8 @@
           </div>
           <div class="kv">
             <b>status</b> · <b>assignedReviewerId</b> · <b>approvedAt</b> · <b>actor</b> {id, role}<br />
-            <b>now</b> (ISO, caller-supplied) · <b>reason</b> · <b>mfaVerified</b> · <b>source</b> <code>user | server</code>
+            <b>now</b> (ISO, caller-supplied) · <b>reason</b> · <b>mfaVerified</b> · <b>source</b> <code>user</code> asks and must prove it,
+            <code>system</code> was already decided
           </div>
         </div>
       </div>
@@ -180,7 +180,8 @@
           <div class="branch-title">Allowed</div>
           <div class="branch-code">{ ok: true, action, from, to, effects: TransitionEffect[] }</div>
           <div class="branch-body">
-            <code>to</code> is the next status. Everything else that must change travels in <code>effects</code> — five variants, closed union.
+            <code>to</code> is the next status. Everything else that must change travels in <code>effects</code> — five variants, closed
+            union, handed straight to the fold below.
           </div>
         </div>
       </div>
@@ -214,26 +215,45 @@
         <tr>
           <td class="name">require_new_version</td>
           <td>resubmit · amend</td>
-          <td>Content must continue on a fresh version row rather than overwrite a signed one.</td>
+          <td>Content must continue on a fresh version row rather than overwrite a signed one — surfaced as a flag, since version rows are storage.</td>
         </tr>
       </table>
 
       <div class="down">
         <div class="vline"></div>
         <div class="head-d"></div>
-        <div class="down-sub">the same array is handed to both sides</div>
+      </div>
+
+      <div class="core-box">
+        <div class="col-label" style="color: #6f9c80">The one place effects are interpreted</div>
+        <div class="gates">
+          <div class="gate">
+            <div class="gate-name">applyTransition(state, result)</div>
+            <div class="gate-body">
+              Folds the effect list over the caller's current lifecycle fields. Exhaustive switch — a sixth effect fails the build here,
+              once, instead of silently in each adapter.
+            </div>
+          </div>
+          <div class="chev"><div class="head-r"></div></div>
+          <div class="gate" style="grid-column: span 3">
+            <div class="gate-name">→ { status, assignedReviewerId, approvedAt, requiresNewVersion }</div>
+            <div class="gate-body">
+              The next state, in the core's own vocabulary: ids, not user objects; a flag, not a version row. Storage is the caller's
+              business.
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="appliers">
         <div class="panel applier server">
           <div class="panel-head">
             <div class="panel-title">API — the write that counts</div>
-            <div class="panel-note">store.ts · applyEffects()</div>
+            <div class="panel-note">store.ts · transitionNote()</div>
           </div>
-          <div class="step"><b>switch over effects</b> → sets <code>assignedReviewerId</code> and <code>approvedAt</code> on the stored note.</div>
-          <div class="step"><b>status + updatedAt</b> written from <code>result.to</code>.</div>
+          <div class="step"><b>Assigns the three fields</b> onto the stored note, plus its own <code>updatedAt</code>.</div>
           <div class="step">
-            <b>require_new_version</b> → branches a version row off the current head and emits <code>note.version_added</code>. The signed
+            <b>requiresNewVersion</b> → branches a version row off the current head and emits <code>note.version_added</code>. The signed
             revision stays intact.
           </div>
           <div class="step">Appends the <code>ReviewEvent</code>, records the <code>clientMutationId</code>, emits <code>note.status_changed</code>.</div>
@@ -244,16 +264,21 @@
             <div class="panel-title">Web — the optimistic guess</div>
             <div class="panel-note">entities/note/lib/transition-patch.ts</div>
           </div>
-          <div class="step"><b>same switch</b> → resolves <code>assignedReviewer</code> and <code>approvedAt</code> into a patch object.</div>
-          <div class="step">Returns <code>{ status, assignedReviewer, approvedAt, updatedAt }</code>, or <code>null</code> if the core refused.</div>
-          <div class="step"><b>require_new_version</b> is a deliberate no-op — only the server mints versions; the echo arrives over the socket.</div>
-          <div class="step">Detail cache, list caches, and a local review row are patched from that one object; the pre-patch snapshot is the rollback.</div>
+          <div class="step">
+            <b>Names the reviewer</b> — the only translation it owns: an id becomes a <code>UserRef</code> the cache can render, or waits
+            for the server if it belongs to nobody in hand.
+          </div>
+          <div class="step">
+            <b>requiresNewVersion is ignored</b> — only the server mints versions; the new revision arrives over the socket.
+          </div>
+          <div class="step">Detail cache, list caches, and a local review row are patched from one object; the pre-patch snapshot is the rollback.</div>
+          <div class="step">Same function serves both directions: the action a user clicked, and a status change observed over the socket.</div>
         </div>
       </div>
 
       <div class="footnote">
-        Both switches are exhaustive over the union, so adding a sixth effect fails the build in the browser and the API until both learn to
-        apply it — which is the whole reason the change is data instead of a function call.
+        Neither adapter mentions an effect type. They receive the next lifecycle state and are left with the work only they can do —
+        persisting rows, branching versions, hydrating users, painting caches.
       </div>
     </div>
   </body>

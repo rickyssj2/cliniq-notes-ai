@@ -190,8 +190,8 @@
           <div class="case warn">
             <div class="case-when">Different status — someone else acted</div>
             <div class="case-then">
-              Run <code>applyServerStatusChange(from → to)</code> first. The machine decides whether that edge is legal before any cache
-              write, so a bad push cannot corrupt the tab.
+              Ask <code>canTransitionTo(toStatus)</code> first: the machine resolves which edge that was and whether it is legal, then
+              returns the fields to write. A bad push cannot corrupt the tab.
             </div>
           </div>
           <div class="case stop">

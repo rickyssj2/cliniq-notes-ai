@@ -1,6 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { NoteDetail, NoteSummary, VersionConflictError } from "@soulside/domain";
-import { applyServerStatusChange } from "@soulside/domain";
 import { getActorId } from "@shared/api";
 import { log } from "@shared/logging";
 import { pushNotice } from "@shared/notices";
@@ -12,6 +11,7 @@ import {
   mergeReviewEvent,
   reviewEventFromStatusChanged,
 } from "./optimistic-transition";
+import { statusChangePatch } from "./transition-patch";
 import {
   isDraftDirty,
   useEditorDraftStore,
@@ -156,33 +156,18 @@ export function applyRealtimeEvent(
             },
           });
         } else {
-          statusActuallyChanged = true;
-          const machine = applyServerStatusChange({
-            status: detail.status,
+          const patch = statusChangePatch({
+            note: detail,
             to: event.toStatus,
-            actor: {
-              id: event.actor.id,
-              role: event.actor.role,
-            },
-            assignedReviewerId: detail.assignedReviewer?.id ?? null,
-            approvedAt: detail.approvedAt,
-            now: event.at,
+            actor: event.actor,
+            at: event.at,
           });
-          if (machine.ok) {
+
+          if (patch) {
+            statusActuallyChanged = true;
             queryClient.setQueryData<NoteDetail>(detailKey, {
               ...detail,
-              status: event.toStatus,
-              updatedAt: event.at,
-              approvedAt:
-                event.toStatus === "APPROVED"
-                  ? event.at
-                  : detail.approvedAt,
-              assignedReviewer:
-                event.toStatus === "IN_REVIEW"
-                  ? detail.assignedReviewer ?? event.actor
-                  : event.toStatus === "READY_FOR_REVIEW"
-                    ? null
-                    : detail.assignedReviewer,
+              ...patch,
               review: {
                 events: mergeReviewEvent(
                   detail.review.events,
@@ -191,6 +176,8 @@ export function applyRealtimeEvent(
               },
             });
           } else {
+            // Not a legal edge from what this tab holds — refetch rather than
+            // trust the push.
             void queryClient.invalidateQueries({ queryKey: detailKey });
           }
         }

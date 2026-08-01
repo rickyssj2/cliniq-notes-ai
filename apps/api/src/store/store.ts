@@ -1,6 +1,7 @@
 import {
   NOTE_STATUSES,
   TRANSITIONS,
+  applyTransition,
   can,
   canEditContent,
   type CreateVersionRequest,
@@ -10,7 +11,6 @@ import {
   type NoteStatus,
   type NoteSummary,
   type NoteVersion,
-  type TransitionEffect,
   type VersionConflictError,
 } from "@soulside/domain";
 import { createRng, id, pick } from "./rng";
@@ -477,27 +477,6 @@ export class NoteStore {
     return this.mutations.get(clientMutationId) ?? null;
   }
 
-  private applyEffects(note: StoredNote, effects: TransitionEffect[]) {
-    for (const effect of effects) {
-      switch (effect.type) {
-        case "assign_reviewer":
-          note.assignedReviewerId = effect.reviewerId;
-          break;
-        case "release_reviewer":
-          note.assignedReviewerId = null;
-          break;
-        case "record_approved_at":
-          note.approvedAt = effect.at;
-          break;
-        case "clear_approved_at":
-          note.approvedAt = null;
-          break;
-        case "require_new_version":
-          break;
-      }
-    }
-  }
-
   createVersion(
     noteId: string,
     body: CreateVersionRequest,
@@ -705,11 +684,20 @@ export class NoteStore {
     }
 
     const fromStatus = note.status;
-    note.status = result.to;
-    this.applyEffects(note, result.effects);
+    const next = applyTransition(
+      {
+        status: note.status,
+        assignedReviewerId: note.assignedReviewerId,
+        approvedAt: note.approvedAt,
+      },
+      result,
+    );
+    note.status = next.status;
+    note.assignedReviewerId = next.assignedReviewerId;
+    note.approvedAt = next.approvedAt;
     note.updatedAt = now;
 
-    if (result.effects.some((e) => e.type === "require_new_version")) {
+    if (next.requiresNewVersion) {
       const head = this.versions.get(note.currentVersionId)!;
       const branchedId = `ver_${noteId}_branch_${Date.now().toString(36)}`;
       const branched: StoredVersion = {
@@ -804,12 +792,22 @@ export class NoteStore {
       approvedAt: note.approvedAt,
       now,
       actor: null,
-      source: "server",
+      source: "system",
     });
     if (!result.ok) return;
 
     const fromStatus = note.status;
-    note.status = result.to;
+    const next = applyTransition(
+      {
+        status: note.status,
+        assignedReviewerId: note.assignedReviewerId,
+        approvedAt: note.approvedAt,
+      },
+      result,
+    );
+    note.status = next.status;
+    note.assignedReviewerId = next.assignedReviewerId;
+    note.approvedAt = next.approvedAt;
     note.updatedAt = now;
 
     const reviewEvent: StoredReviewEvent = {

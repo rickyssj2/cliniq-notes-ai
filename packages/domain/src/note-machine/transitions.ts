@@ -115,7 +115,7 @@ export const TRANSITIONS: readonly TransitionDef[] = [
       if (ctx.actor.role === "ADMIN") return null;
       const assigned = isAssignedReviewer(ctx);
       if (assigned) return assigned;
-      if (ctx.source !== "server" && !ctx.mfaVerified) {
+      if (ctx.source !== "system" && !ctx.mfaVerified) {
         return "MFA re-authentication is required to approve";
       }
       return null;
@@ -177,8 +177,9 @@ export const TRANSITIONS: readonly TransitionDef[] = [
       if (Number.isNaN(approvedAt) || Number.isNaN(now)) {
         return "Invalid approval or clock timestamp";
       }
-      // Server may force-lock; user/auto path requires grace to have elapsed.
-      if (ctx.source !== "server" && now - approvedAt < AMEND_GRACE_MS) {
+      // An already-decided lock is accepted as-is; a request to lock now must
+      // wait out the grace window.
+      if (ctx.source !== "system" && now - approvedAt < AMEND_GRACE_MS) {
         return "24h amendment grace window has not elapsed yet";
       }
       return null;

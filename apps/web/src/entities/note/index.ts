@@ -10,14 +10,16 @@ export type {
 
 export {
   can,
-  applyServerStatusChange,
+  canTransitionTo,
+  applyTransition,
   getAvailableActions,
   isContentReadOnly,
-  getLifecycleBanner,
   canEditContent,
   NOTE_ACTIONS,
   AMEND_GRACE_MS,
 } from "@soulside/domain";
+
+export { getLifecycleBanner } from "./lib/lifecycle-banner";
 
 export {
   notesQueryKeys,
@@ -78,6 +80,7 @@ export {
 } from "./lib/optimistic-transition";
 export {
   transitionPatch,
+  statusChangePatch,
   type TransitionPatch,
 } from "./lib/transition-patch";
 export { NoteStatusBadge } from "./ui/NoteStatusBadge";

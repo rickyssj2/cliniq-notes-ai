@@ -7,16 +7,18 @@ export type {
   TransitionFailure,
   TransitionResult,
   AvailableAction,
+  LifecycleState,
+  AppliedTransition,
 } from "./types";
 
 export { NOTE_ACTIONS, AMEND_GRACE_MS } from "./types";
 export { TRANSITIONS, findTransition, outgoingUserTransitions } from "./transitions";
 export {
   can,
-  applyServerStatusChange,
+  canTransitionTo,
+  applyTransition,
   getAvailableActions,
   isContentReadOnly,
-  getLifecycleBanner,
   canEditContent,
 } from "./machine";
 export type { ContentEditResult } from "./machine";

@@ -22,7 +22,7 @@ The socket is a **hint channel**. Nothing arriving on it is trusted on sight: it
 | Event | Case | Outcome |
 |---|---|---|
 | `note.status_changed` | Cached status already equals `toStatus` | Own optimistic patch confirmed — refresh `updatedAt`, `mergeReviewEvent` swaps the `local_*` row for the server's |
-| | Someone else acted | `applyServerStatusChange` validates `from → to` before the cache write |
+| | Someone else acted | `statusChangePatch` → `canTransitionTo(to, { source: "system" })` validates the edge and returns the fields to write |
 | | Machine refuses the pushed edge | Cache untouched; detail query invalidated |
 | `note.version_added` | Revision ≤ current tip | Late echo of a slow save — dropped, the cache never walks backwards |
 | | Own save, HTTP ack not back yet | `acknowledgeSave` advances the base version; text typed during the POST stays dirty |
@@ -40,5 +40,6 @@ Backoff reconnect → resubscribe carrying `lastEventId` → server `eventsSince
 
 - `apps/web/src/shared/realtime/client.ts`
 - `apps/web/src/entities/note/lib/apply-realtime-event.ts`
+- `apps/web/src/entities/note/lib/transition-patch.ts`
 - `apps/api/src/realtime/hub.ts`
 - `apps/api/src/store/store.ts` — `emit` / `eventsSince`

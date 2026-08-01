@@ -173,17 +173,17 @@
 
       <div class="core-box domain">
         <div class="call">
-          <div class="call-up">Browser → <code>can()</code> · <code>getAvailableActions()</code> · <code>applyServerStatusChange()</code></div>
-          <div class="call-dn">← verdict + <code>TransitionEffect[]</code></div>
+          <div class="call-up">Browser → <code>can()</code> · <code>canTransitionTo()</code> · <code>getAvailableActions()</code></div>
+          <div class="call-dn">← verdict + next <code>LifecycleState</code></div>
         </div>
         <div style="text-align: center">
           <div class="core-name">packages/domain — noteMachine</div>
-          <div class="core-sub">TRANSITIONS table · guards (reason strings) · effects</div>
+          <div class="core-sub">TRANSITIONS table · guards (reason strings) · applyTransition</div>
           <span class="zero">Holds no state · no I/O · same module both sides</span>
         </div>
         <div class="call">
           <div class="call-up">Server → <code>can()</code> on every write</div>
-          <div class="call-dn">← verdict + <code>TransitionEffect[]</code></div>
+          <div class="call-dn">← verdict + next <code>LifecycleState</code></div>
         </div>
       </div>
 

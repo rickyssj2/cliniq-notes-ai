@@ -1,10 +1,13 @@
 import type { NoteStatus } from "../types";
 import { findTransition, outgoingUserTransitions, TRANSITIONS } from "./transitions";
 import type {
+  AppliedTransition,
   AvailableAction,
+  LifecycleState,
   MachineContext,
   NoteAction,
   TransitionResult,
+  TransitionSuccess,
 } from "./types";
 
 function withDefaults(
@@ -23,8 +26,8 @@ function withDefaults(
  * status plus effects for the caller to apply. Machine state lives with the
  * caller, so validating and "performing" a transition are the same call.
  *
- * User intent and server-driven events both come through here; `ctx.source`
- * is the only difference, so there is no laxer path for remote changes.
+ * User intent and already-decided transitions both come through here;
+ * `ctx.source` is the only difference, so there is no laxer path for either.
  *
  * Components must call this (or use getAvailableActions) — never hard-code status checks.
  */
@@ -65,44 +68,86 @@ export function can(
 }
 
 /**
- * Resolve a server-pushed status change through the machine.
- * Looks up a unique edge matching (from → to); fails if ambiguous or illegal.
+ * Same question as `can`, asked by destination instead of by action — for
+ * callers that learn a status changed without being told which edge did it
+ * (a pushed event, a reconciliation). Resolves the unique legal edge and
+ * evaluates it; fails if none exists or the choice is ambiguous.
+ *
+ * The caller states its own `source`; the core does not assume that a
+ * status-shaped question came from anywhere in particular.
  */
-export function applyServerStatusChange(
-  ctx: Omit<MachineContext, "now" | "source" | "status"> & {
-    status: NoteStatus;
-    to: NoteStatus;
-  } & Partial<Pick<MachineContext, "now">>,
+export function canTransitionTo(
+  to: NoteStatus,
+  ctx: Omit<MachineContext, "now" | "source"> &
+    Partial<Pick<MachineContext, "now" | "source">>,
 ): TransitionResult {
-  const full = withDefaults({ ...ctx, source: "server" });
-  const matches = TRANSITIONS.filter(
-    (t) => t.from === full.status && t.to === ctx.to,
-  );
+  const full = withDefaults(ctx);
+  const matches = TRANSITIONS.filter((t) => t.from === full.status && t.to === to);
 
   if (matches.length === 0) {
     return {
       ok: false,
       action: "generation.complete",
       from: full.status,
-      reason: `No legal transition from ${full.status} to ${ctx.to}`,
+      reason: `No legal transition from ${full.status} to ${to}`,
     };
   }
 
   if (matches.length > 1) {
-    // Prefer the edge whose guard passes for the remote actor.
     const viable = matches.find((t) => t.guard(full) === null);
     if (!viable) {
       return {
         ok: false,
         action: matches[0]!.action,
         from: full.status,
-        reason: `Multiple edges ${full.status}→${ctx.to}, none pass guards`,
+        reason: `Multiple edges ${full.status}→${to}, none pass guards`,
       };
     }
     return can(viable.action, full);
   }
 
   return can(matches[0]!.action, full);
+}
+
+/**
+ * Fold an allowed transition into the lifecycle fields it produces. This is the
+ * one place effects are interpreted: adapters store the result and honour
+ * `requiresNewVersion`, but never branch on effect types themselves.
+ */
+export function applyTransition(
+  state: LifecycleState,
+  result: TransitionSuccess,
+): AppliedTransition {
+  let assignedReviewerId = state.assignedReviewerId;
+  let approvedAt = state.approvedAt;
+  let requiresNewVersion = false;
+
+  for (const effect of result.effects) {
+    switch (effect.type) {
+      case "assign_reviewer":
+        assignedReviewerId = effect.reviewerId;
+        break;
+      case "release_reviewer":
+        assignedReviewerId = null;
+        break;
+      case "record_approved_at":
+        approvedAt = effect.at;
+        break;
+      case "clear_approved_at":
+        approvedAt = null;
+        break;
+      case "require_new_version":
+        requiresNewVersion = true;
+        break;
+    }
+  }
+
+  return {
+    status: result.to,
+    assignedReviewerId,
+    approvedAt,
+    requiresNewVersion,
+  };
 }
 
 /**
@@ -141,22 +186,6 @@ export function getAvailableActions(
 /** LOCKED / GENERATING notes are always content-locked by status alone. */
 export function isContentReadOnly(status: NoteStatus): boolean {
   return status === "LOCKED" || status === "GENERATING";
-}
-
-/**
- * Optional lifecycle banner copy when content is machine-locked and there are
- * no user actions. Components must use this — never branch on status strings.
- */
-export function getLifecycleBanner(status: NoteStatus): string | null {
-  if (!isContentReadOnly(status)) return null;
-  if (outgoingUserTransitions(status).length > 0) return null;
-  if (status === "LOCKED") {
-    return "This note is LOCKED after the 24h amendment grace window. Content is read-only; start a new clinical note if changes are required.";
-  }
-  if (status === "GENERATING") {
-    return "Note is generating. Content is read-only until generation completes.";
-  }
-  return null;
 }
 
 export type ContentEditResult =

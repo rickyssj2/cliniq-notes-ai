@@ -38,10 +38,12 @@ export type MachineContext = {
   /** Required for user-initiated approve. */
   mfaVerified?: boolean;
   /**
-   * `server` applies a remote/authoritative transition: MFA is trusted,
-   * actor may be the remote party. `user` is a local intent gate.
+   * `user` is a person asking for something and must clear the intent gates
+   * (MFA, grace window). `system` is a transition that was already decided —
+   * an elapsed timer, or one observed from an authoritative source — so those
+   * gates do not apply a second time.
    */
-  source?: "user" | "server";
+  source?: "user" | "system";
 };
 
 export type TransitionEffect =
@@ -67,6 +69,21 @@ export type TransitionFailure = {
 };
 
 export type TransitionResult = TransitionSuccess | TransitionFailure;
+
+/** The lifecycle fields every adapter keeps for a note, whatever it calls them. */
+export type LifecycleState = {
+  status: NoteStatus;
+  assignedReviewerId: string | null;
+  approvedAt: string | null;
+};
+
+export type AppliedTransition = LifecycleState & {
+  /**
+   * Content must continue on a fresh version row. Version rows are storage the
+   * core knows nothing about, so this stays a flag for the adapter to honour.
+   */
+  requiresNewVersion: boolean;
+};
 
 export type AvailableAction = {
   action: NoteAction;
