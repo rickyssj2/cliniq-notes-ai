@@ -2,6 +2,11 @@
 
 `POST .../versions` requires `baseVersionId`. Mismatch → `409` with `current` + `commonAncestor`.
 
+---
+
+## Chart
+
+![Version conflict — three-way merge](./images/sequence-conflict-409.png)
 
 ---
 

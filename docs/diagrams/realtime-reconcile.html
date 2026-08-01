@@ -1,0 +1,258 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="./diagram.css" />
+    <style>
+      #canvas { width: 1560px; }
+      .row3 {
+        display: grid;
+        grid-template-columns: 1fr 34px 1fr 34px 1fr;
+        align-items: center;
+        margin-top: 22px;
+      }
+      .chev { display: flex; align-items: center; justify-content: center; }
+
+      .server-card { border-top: 4px solid #b45309; }
+      .gate-card { border-top: 4px solid #0f766e; }
+
+      .gates2 {
+        display: grid;
+        grid-template-columns: 1fr 34px 1fr 34px 300px;
+        align-items: center;
+        margin-top: 18px;
+      }
+      .drop {
+        border: 1px dashed #d6d3d1;
+        border-radius: 12px;
+        background: #fafaf9;
+        padding: 13px 15px;
+        text-align: center;
+      }
+      .drop-title { font-size: 14px; font-weight: 700; color: #57534e; }
+      .drop-body { font-size: 12.4px; color: #78716c; margin-top: 6px; line-height: 1.45; }
+
+      .lanes { display: grid; grid-template-columns: 300px 1fr 1fr; gap: 18px; margin-top: 20px; align-items: start; }
+      .lane { border-top: 4px solid #a8a29e; }
+      .lane.status { border-top-color: #7c3aed; }
+      .lane.version { border-top-color: #0f766e; }
+      .lane-kicker {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12.5px;
+        color: #78716c;
+      }
+
+      .case {
+        border: 1px solid #eae7df;
+        border-left: 3px solid #d6d3d1;
+        border-radius: 8px;
+        padding: 9px 12px;
+        margin-top: 9px;
+        background: #fff;
+      }
+      .case.ok { border-left-color: #15803d; }
+      .case.warn { border-left-color: #b45309; }
+      .case.stop { border-left-color: #be123c; }
+      .case-when { font-size: 12.4px; font-weight: 650; color: #1c1917; }
+      .case-then { font-size: 12.4px; color: #57534e; margin-top: 4px; line-height: 1.45; }
+      .always {
+        margin-top: 11px;
+        font-size: 12.3px;
+        color: #57534e;
+        background: #f7f6f2;
+        border-radius: 8px;
+        padding: 9px 12px;
+        line-height: 1.45;
+      }
+      .always b { color: #1c1917; font-weight: 650; }
+
+      .reconnect {
+        margin-top: 22px;
+        border: 1px solid #e3e0d8;
+        border-radius: 14px;
+        background: #ffffff;
+        padding: 15px 18px;
+      }
+      .reconnect-steps {
+        display: grid;
+        grid-template-columns: 1fr 30px 1fr 30px 1fr 30px 1fr;
+        align-items: center;
+        margin-top: 11px;
+      }
+      .rstep { font-size: 12.6px; color: #57534e; line-height: 1.45; }
+      .rstep b { color: #1c1917; font-weight: 650; display: block; margin-bottom: 3px; }
+    </style>
+  </head>
+  <body>
+    <div id="canvas">
+      <div class="title">Realtime reconciliation — at-least-once in, exactly-once applied</div>
+      <div class="subtitle">
+        The socket carries hints, never authority. Every frame clears the same two gates before a cache is touched, then each event type
+        reconciles against what this tab already believes.
+      </div>
+
+      <div class="row3">
+        <div class="panel server-card">
+          <div class="panel-head">
+            <div class="panel-title">Mutation commits</div>
+            <div class="panel-note">store.emit()</div>
+          </div>
+          <div class="card-body">
+            Status change, new version, presence update. The event is stamped with a monotonic <code>evt_00000123</code> id.
+          </div>
+        </div>
+        <div class="chev"><div class="head-r"></div></div>
+        <div class="panel server-card">
+          <div class="panel-head">
+            <div class="panel-title">realtimeLog</div>
+            <div class="panel-note">ring buffer · 50k</div>
+          </div>
+          <div class="card-body">
+            Ordered history that makes catch-up possible. Presence snapshots use synthetic <code>snap_*</code> ids and stay out of it.
+          </div>
+        </div>
+        <div class="chev"><div class="head-r"></div></div>
+        <div class="panel server-card">
+          <div class="panel-head">
+            <div class="panel-title">Hub fan-out</div>
+            <div class="panel-note">per-note subscriptions</div>
+          </div>
+          <div class="card-body">
+            Each socket receives only the notes it subscribed to — the visible rows plus anything still generating.
+          </div>
+        </div>
+      </div>
+
+      <div class="down">
+        <div class="down-label">WebSocket — assume duplicates, reorder on reconnect, and gaps</div>
+        <div class="vline"></div>
+        <div class="head-d"></div>
+      </div>
+
+      <div class="gates2">
+        <div class="panel gate-card">
+          <div class="panel-head">
+            <div class="panel-title">1 · Advance the cursor</div>
+            <div class="panel-note">shared/realtime/client.ts</div>
+          </div>
+          <div class="card-body">
+            <code>lastEventId = eventId</code>, but <b>only for durable log ids</b>. A <code>snap_*</code> presence id here would make the
+            server's <code>eventsSince</code> miss and replay history as fresh events.
+          </div>
+        </div>
+        <div class="chev"><div class="head-r"></div></div>
+        <div class="panel gate-card">
+          <div class="panel-head">
+            <div class="panel-title">2 · Dedupe</div>
+            <div class="panel-note">applyRealtimeEvent</div>
+          </div>
+          <div class="card-body">
+            <code>seenEventIds</code>, capped at 2 000. First sight wins; anything already applied returns early. This is what turns
+            at-least-once delivery into exactly-once effect.
+          </div>
+        </div>
+        <div class="chev"><div class="head-r"></div></div>
+        <div class="drop">
+          <div class="drop-title">Duplicate → dropped</div>
+          <div class="drop-body">No second patch, no second toast. In dev the server can flag a deliberate rebroadcast so every tab shows
+            the dedupe happening.</div>
+        </div>
+      </div>
+
+      <div class="lanes">
+        <div class="panel lane">
+          <div class="panel-head">
+            <div class="panel-title">Presence</div>
+          </div>
+          <div class="lane-kicker">note.presence</div>
+          <div class="case">
+            <div class="case-when">Always</div>
+            <div class="case-then">Replaces the viewer list for that note in the presence store. Nothing in the Query cache moves.</div>
+          </div>
+          <div class="always">
+            Deliberately outside the log: presence is true only while a socket is open, so replaying it after a reconnect would be a lie.
+          </div>
+        </div>
+
+        <div class="panel lane status">
+          <div class="panel-head">
+            <div class="panel-title">Lifecycle status</div>
+          </div>
+          <div class="lane-kicker">note.status_changed</div>
+
+          <div class="case ok">
+            <div class="case-when">Cached status already equals <code>toStatus</code></div>
+            <div class="case-then">
+              Our own optimistic patch, now confirmed. Refresh <code>updatedAt</code> and let <code>mergeReviewEvent</code> swap the
+              local <code>local_*</code> row for the server's — the timeline never shows the same action twice.
+            </div>
+          </div>
+          <div class="case warn">
+            <div class="case-when">Different status — someone else acted</div>
+            <div class="case-then">
+              Run <code>applyServerStatusChange(from → to)</code> first. The machine decides whether that edge is legal before any cache
+              write, so a bad push cannot corrupt the tab.
+            </div>
+          </div>
+          <div class="case stop">
+            <div class="case-when">Machine refuses the pushed edge</div>
+            <div class="case-then">Cache is left alone and the detail query is invalidated — refetch instead of guess.</div>
+          </div>
+          <div class="always">
+            <b>Always:</b> patch every cached list — rows that no longer match a filter are removed, and lists the note now belongs to are
+            refetched. Toast only when the actor was someone else.
+          </div>
+        </div>
+
+        <div class="panel lane version">
+          <div class="panel-head">
+            <div class="panel-title">Content</div>
+          </div>
+          <div class="lane-kicker">note.version_added</div>
+
+          <div class="case stop">
+            <div class="case-when">Revision ≤ the tip we already hold</div>
+            <div class="case-then">Late echo of a slow save. Dropped — the cache never walks backwards.</div>
+          </div>
+          <div class="case ok">
+            <div class="case-when">Our own save, ack not back yet</div>
+            <div class="case-then">
+              <code>acknowledgeSave</code> advances the draft's base version. Text typed while the POST was in flight stays dirty rather
+              than being mistaken for a foreign edit — this is the socket beating HTTP.
+            </div>
+          </div>
+          <div class="case warn">
+            <div class="case-when">Foreign save while our draft is dirty</div>
+            <div class="case-then">
+              Open the three-way merge with their version as <code>current</code> and our base as the ancestor. The editor keeps showing
+              our text; only <code>updatedAt</code> moves.
+            </div>
+          </div>
+          <div class="case">
+            <div class="case-when">Foreign save, our draft is clean</div>
+            <div class="case-then">Cache follows the server tip and a toast names who saved — a silent content swap is never acceptable.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reconnect">
+        <div class="col-label">Reconnect — the same gates, replayed</div>
+        <div class="reconnect-steps">
+          <div class="rstep"><b>Socket drops</b>Exponential backoff; queued writes keep draining over HTTP meanwhile.</div>
+          <div class="chev"><div class="head-r"></div></div>
+          <div class="rstep"><b>Resubscribe with <code>lastEventId</code></b>Sent with the note ids this tab still cares about.</div>
+          <div class="chev"><div class="head-r"></div></div>
+          <div class="rstep"><b><code>eventsSince()</code></b>Everything after the cursor, filtered to subscribed notes. Cursor trimmed
+            from the buffer falls back to the last 200.</div>
+          <div class="chev"><div class="head-r"></div></div>
+          <div class="rstep"><b>Replay re-enters gate 2</b>Overlap is absorbed by the dedupe set, so a generous replay window is free.</div>
+        </div>
+      </div>
+
+      <div class="footnote">
+        No event is trusted on arrival: it is deduped, validated by the same domain machine the API used, and reconciled against local
+        drafts before anything the reviewer can see changes.
+      </div>
+    </div>
+  </body>
+</html>

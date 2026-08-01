@@ -1,0 +1,185 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="./diagram.css" />
+    <style>
+      #canvas { width: 1440px; background: #ffffff; }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 78px 380px 78px 1fr;
+        gap: 0;
+        align-items: center;
+        margin-top: 30px;
+      }
+      .adapter { border-left: 4px solid #0f766e; }
+      .adapter.authoritative { border-left-color: #b45309; }
+      .adapter .card-body { margin-top: 6px; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: #78716c; margin-top: 3px; }
+
+      .hex {
+        width: 380px;
+        height: 300px;
+        clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+        background: #15803d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .hex-inner {
+        width: calc(100% - 10px);
+        height: calc(100% - 10px);
+        clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+        background: #ffffff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 0 26px;
+      }
+      .hex-kicker { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; color: #a8a29e; }
+      .hex-name { font-size: 24px; font-weight: 700; color: #14532d; margin-top: 6px; }
+      .hex-lines { font-size: 13px; color: #3f6b4e; margin-top: 12px; line-height: 1.65; }
+
+      .arrow-in { text-align: center; }
+      .arrow-in .caption { font-size: 12px; color: #57534e; line-height: 1.35; margin-bottom: 6px; }
+      .arrow-row { display: flex; align-items: center; }
+
+      .empty {
+        border: 1.5px dashed #d6d3d1;
+        border-radius: 14px;
+        padding: 20px 22px;
+        text-align: center;
+        background: repeating-linear-gradient(
+          45deg,
+          #fafaf9,
+          #fafaf9 9px,
+          #f5f5f4 9px,
+          #f5f5f4 18px
+        );
+      }
+      .empty-title { font-size: 16px; font-weight: 700; color: #44403c; }
+      .empty-body { font-size: 12.8px; color: #78716c; margin-top: 7px; line-height: 1.5; }
+      .struck {
+        margin-top: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        color: #c4c0b8;
+        line-height: 1.9;
+        text-decoration: line-through;
+      }
+      .struck span.keep { text-decoration: none; }
+
+      .return {
+        margin-top: 26px;
+        border: 1px solid #bbf7d0;
+        border-radius: 12px;
+        background: #f4fbf6;
+        padding: 13px 18px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .return .line { background: #86c79b; }
+      .return .head-l { border-right-color: #15803d; }
+      .return-text { text-align: center; }
+      .return-title { font-size: 14px; font-weight: 700; color: #14532d; }
+      .return-sub { font-size: 12.3px; color: #4d7c5f; margin-top: 3px; }
+    </style>
+  </head>
+  <body>
+    <div id="canvas">
+      <div class="title">Ports &amp; adapters — one core, three drivers, no driven side</div>
+      <div class="subtitle">
+        Hexagonal on the clinical lifecycle core. The outbound half is deliberately absent: the core never calls out, it hands back effects.
+      </div>
+
+      <div class="grid">
+        <div>
+          <div class="col-label">Driving adapters</div>
+
+          <div class="card adapter">
+            <div class="card-top">
+              <div class="card-name">Web UI</div>
+              <div class="pill good">advisory · ux</div>
+            </div>
+            <div class="mono">features/transition-note · bulk-note-actions</div>
+            <div class="card-body">Enables buttons, renders the guard's reason as the disabled tooltip, paints the optimistic patch.</div>
+          </div>
+
+          <div class="card adapter">
+            <div class="card-top">
+              <div class="card-name">WebSocket inbound (browser)</div>
+              <div class="pill good">advisory · ux</div>
+            </div>
+            <div class="mono">entities/note/lib/apply-realtime-event.ts</div>
+            <div class="card-body">
+              Validates a pushed <code>from → to</code> through <code>applyServerStatusChange</code> before touching any cache.
+            </div>
+          </div>
+
+          <div class="card adapter authoritative">
+            <div class="card-top">
+              <div class="card-name">API routes + store</div>
+              <div class="pill warn">authoritative</div>
+            </div>
+            <div class="mono">apps/api/src/store/store.ts</div>
+            <div class="card-body">The only enforcement that counts. Re-derives every guard from server-held state; rejects with 409.</div>
+          </div>
+        </div>
+
+        <div class="arrow-in">
+          <div class="caption">action<br />+ context</div>
+          <div class="arrow-row"><div class="line"></div><div class="head-r"></div></div>
+        </div>
+
+        <div class="hex">
+          <div class="hex-inner">
+            <div class="hex-kicker">CORE</div>
+            <div class="hex-name">noteMachine</div>
+            <div class="hex-lines">
+              TRANSITIONS table<br />
+              guards → reason strings<br />
+              effects → data, not actions
+            </div>
+            <span class="zero">Pure · no I/O · no state</span>
+          </div>
+        </div>
+
+        <div class="arrow-in">
+          <div class="caption">nothing<br />called out</div>
+          <div class="arrow-row"><div class="line" style="background: #e7e5e4"></div></div>
+        </div>
+
+        <div>
+          <div class="col-label" style="text-align: right">Driven ports</div>
+          <div class="empty">
+            <div class="empty-title">Intentionally empty</div>
+            <div class="empty-body">The core loads nothing and persists nothing, so there is no outbound interface to implement.</div>
+            <div class="struck">
+              NoteRepository<br />
+              Clock — <span class="keep"><code>now</code> is a parameter</span><br />
+              EventPublisher
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="return">
+        <div class="head-l"></div>
+        <div class="line"></div>
+        <div class="return-text">
+          <div class="return-title">verdict + <code>TransitionEffect[]</code> — each adapter applies them</div>
+          <div class="return-sub">This return value is what replaces driven ports: the core describes the change, the caller performs it.</div>
+        </div>
+        <div class="line"></div>
+        <div class="head-l" style="transform: rotate(180deg)"></div>
+      </div>
+
+      <div class="footnote">
+        One workspace package imported by both runtimes — a shared kernel, which is why the browser can predict the server's answer exactly.
+      </div>
+    </div>
+  </body>
+</html>

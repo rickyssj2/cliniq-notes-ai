@@ -42,6 +42,22 @@ stateDiagram-v2
 
 ---
 
+## Effect flow
+
+`can()` returns a verdict plus `TransitionEffect[]`. The core mutates nothing — the API applier and the web optimistic patcher both switch over the same list, so a new effect fails the build on both sides until each learns to apply it.
+
+![Effect flow](./images/effect-flow.png)
+
+| Effect | Emitted by | Means |
+|---|---|---|
+| `assign_reviewer(reviewerId)` | `start_review` | Actor takes ownership |
+| `release_reviewer` | `return` · `approve` · `reject` | Ownership ends |
+| `record_approved_at(at)` | `approve` | Starts the 24h amend grace clock |
+| `clear_approved_at` | `amend` | Old approval no longer stands |
+| `require_new_version` | `resubmit` · `amend` | Content continues on a fresh version row; API branches it, web treats it as a no-op |
+
+---
+
 ## Related code
 
 - `packages/domain/src/note-machine/machine.ts`

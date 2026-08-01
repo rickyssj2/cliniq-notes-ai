@@ -1,0 +1,260 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="./diagram.css" />
+    <style>
+      #canvas { width: 1500px; }
+      .stage { margin-top: 24px; }
+
+      .io {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .kv { font-size: 12.8px; color: #57534e; line-height: 1.7; }
+      .kv b { color: #1c1917; font-weight: 650; }
+
+      .gates {
+        display: grid;
+        grid-template-columns: 1fr 40px 1fr 40px 1fr;
+        align-items: center;
+        gap: 0;
+      }
+      .gate {
+        border: 1px solid #cfe6d7;
+        border-radius: 11px;
+        background: #ffffff;
+        padding: 12px 14px;
+      }
+      .gate-name {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13.5px;
+        font-weight: 650;
+        color: #14532d;
+      }
+      .gate-body { font-size: 12.5px; color: #57534e; margin-top: 5px; line-height: 1.45; }
+      .chev { display: flex; align-items: center; justify-content: center; }
+
+      .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+      .reject {
+        border: 1px solid #fecdd3;
+        border-radius: 12px;
+        background: #fff7f8;
+        padding: 14px 16px;
+      }
+      .accept {
+        border: 1px solid #bbf7d0;
+        border-radius: 12px;
+        background: #f4fbf6;
+        padding: 14px 16px;
+      }
+      .branch-title { font-size: 14.5px; font-weight: 700; color: #1c1917; }
+      .branch-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12.5px;
+        margin-top: 6px;
+        color: #44403c;
+      }
+      .branch-body { font-size: 12.8px; color: #57534e; margin-top: 8px; line-height: 1.5; }
+
+      table.effects {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+        background: #fff;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #e3e0d8;
+      }
+      table.effects th {
+        text-align: left;
+        font-size: 11px;
+        letter-spacing: 0.9px;
+        text-transform: uppercase;
+        color: #a8a29e;
+        padding: 8px 12px;
+        border-bottom: 1px solid #eae7df;
+      }
+      table.effects td {
+        font-size: 12.6px;
+        color: #57534e;
+        padding: 8px 12px;
+        border-bottom: 1px solid #f2f0ea;
+        vertical-align: top;
+      }
+      table.effects tr:last-child td { border-bottom: none; }
+      table.effects td.name {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12.3px;
+        color: #1c1917;
+        white-space: nowrap;
+      }
+
+      .appliers { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+      .applier { border-top: 4px solid #0f766e; }
+      .applier.server { border-top-color: #b45309; }
+      .step { font-size: 12.8px; color: #57534e; line-height: 1.55; padding-left: 18px; position: relative; margin-top: 7px; }
+      .step:before {
+        content: "";
+        position: absolute;
+        left: 2px;
+        top: 7px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #a8a29e;
+      }
+      .step b { color: #1c1917; font-weight: 650; }
+    </style>
+  </head>
+  <body>
+    <div id="canvas">
+      <div class="title">Effect flow — the core decides, the caller performs</div>
+      <div class="subtitle">
+        <code>can()</code> answers with a verdict and a list of effects. Nothing inside <code>packages/domain</code> mutates state; the two
+        appliers below are the only writers, and they read from the same list.
+      </div>
+
+      <div class="stage io">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Call</div>
+            <div class="panel-note">packages/domain/src/note-machine/machine.ts</div>
+          </div>
+          <div class="kv">
+            <b>can(action, ctx)</b> — one of 10 actions<br />
+            <code>generation.complete</code> <code>regenerate</code> <code>start_review</code> <code>return</code> <code>approve</code>
+            <code>reject</code> <code>resubmit</code> <code>amend</code> …
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Context — everything the rules need</div>
+            <div class="panel-note">no globals, no clock</div>
+          </div>
+          <div class="kv">
+            <b>status</b> · <b>assignedReviewerId</b> · <b>approvedAt</b> · <b>actor</b> {id, role}<br />
+            <b>now</b> (ISO, caller-supplied) · <b>reason</b> · <b>mfaVerified</b> · <b>source</b> <code>user | server</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="down">
+        <div class="vline"></div>
+        <div class="head-d"></div>
+      </div>
+
+      <div class="core-box">
+        <div class="col-label" style="color: #6f9c80">Pure evaluation — three steps, in order</div>
+        <div class="gates">
+          <div class="gate">
+            <div class="gate-name">findTransition(action, from)</div>
+            <div class="gate-body">Looks up the edge in the 11-row <code>TRANSITIONS</code> table. Missing edge means the action was never legal here.</div>
+          </div>
+          <div class="chev"><div class="head-r"></div></div>
+          <div class="gate">
+            <div class="gate-name">guard(ctx)</div>
+            <div class="gate-body">
+              Role, assignment, MFA, non-empty reason, 24h amend window. Returns <b>a sentence</b> on refusal, <code>null</code> to allow.
+            </div>
+          </div>
+          <div class="chev"><div class="head-r"></div></div>
+          <div class="gate">
+            <div class="gate-name">effects(ctx)</div>
+            <div class="gate-body">Builds the change as plain data. Reads <code>ctx.now</code> and <code>ctx.actor</code>; performs nothing.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="reject">
+          <div class="branch-title">Refused</div>
+          <div class="branch-code">{ ok: false, action, from, reason }</div>
+          <div class="branch-body">
+            The reason is written to be read by a human. <b>Web:</b> disabled button plus tooltip — no request is sent.
+            <b>API:</b> <code>409 transition_rejected</code> carrying the same sentence, because the browser's verdict is only advisory.
+          </div>
+        </div>
+        <div class="accept">
+          <div class="branch-title">Allowed</div>
+          <div class="branch-code">{ ok: true, action, from, to, effects: TransitionEffect[] }</div>
+          <div class="branch-body">
+            <code>to</code> is the next status. Everything else that must change travels in <code>effects</code> — five variants, closed union.
+          </div>
+        </div>
+      </div>
+
+      <table class="effects">
+        <tr>
+          <th style="width: 230px">Effect</th>
+          <th style="width: 300px">Emitted by</th>
+          <th>Means</th>
+        </tr>
+        <tr>
+          <td class="name">assign_reviewer(reviewerId)</td>
+          <td>start_review (from READY_FOR_REVIEW, AMENDED)</td>
+          <td>The actor takes ownership of the review.</td>
+        </tr>
+        <tr>
+          <td class="name">release_reviewer</td>
+          <td>return · approve · reject</td>
+          <td>Ownership ends; the note is nobody's until claimed again.</td>
+        </tr>
+        <tr>
+          <td class="name">record_approved_at(at)</td>
+          <td>approve</td>
+          <td>Stamps the clock the amend grace window is measured from.</td>
+        </tr>
+        <tr>
+          <td class="name">clear_approved_at</td>
+          <td>amend</td>
+          <td>Reopens the note; the old approval no longer stands.</td>
+        </tr>
+        <tr>
+          <td class="name">require_new_version</td>
+          <td>resubmit · amend</td>
+          <td>Content must continue on a fresh version row rather than overwrite a signed one.</td>
+        </tr>
+      </table>
+
+      <div class="down">
+        <div class="vline"></div>
+        <div class="head-d"></div>
+        <div class="down-sub">the same array is handed to both sides</div>
+      </div>
+
+      <div class="appliers">
+        <div class="panel applier server">
+          <div class="panel-head">
+            <div class="panel-title">API — the write that counts</div>
+            <div class="panel-note">store.ts · applyEffects()</div>
+          </div>
+          <div class="step"><b>switch over effects</b> → sets <code>assignedReviewerId</code> and <code>approvedAt</code> on the stored note.</div>
+          <div class="step"><b>status + updatedAt</b> written from <code>result.to</code>.</div>
+          <div class="step">
+            <b>require_new_version</b> → branches a version row off the current head and emits <code>note.version_added</code>. The signed
+            revision stays intact.
+          </div>
+          <div class="step">Appends the <code>ReviewEvent</code>, records the <code>clientMutationId</code>, emits <code>note.status_changed</code>.</div>
+        </div>
+
+        <div class="panel applier">
+          <div class="panel-head">
+            <div class="panel-title">Web — the optimistic guess</div>
+            <div class="panel-note">entities/note/lib/transition-patch.ts</div>
+          </div>
+          <div class="step"><b>same switch</b> → resolves <code>assignedReviewer</code> and <code>approvedAt</code> into a patch object.</div>
+          <div class="step">Returns <code>{ status, assignedReviewer, approvedAt, updatedAt }</code>, or <code>null</code> if the core refused.</div>
+          <div class="step"><b>require_new_version</b> is a deliberate no-op — only the server mints versions; the echo arrives over the socket.</div>
+          <div class="step">Detail cache, list caches, and a local review row are patched from that one object; the pre-patch snapshot is the rollback.</div>
+        </div>
+      </div>
+
+      <div class="footnote">
+        Both switches are exhaustive over the union, so adding a sixth effect fails the build in the browser and the API until both learn to
+        apply it — which is the whole reason the change is data instead of a function call.
+      </div>
+    </div>
+  </body>
+</html>

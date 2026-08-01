@@ -1,7 +1,12 @@
 # State layers — where each kind of state lives
 
-Server state in TanStack Query, Client State in Zustand. Dexie is **not** a notes cache — only durable *client intent*.
+Server entities do **not** live in Zustand. Dexie is **not** a notes cache — only durable *client intent*.
 
+---
+
+## Chart
+
+![State topology](./images/state-layers.png)
 
 ---
 
@@ -18,6 +23,8 @@ Server state in TanStack Query, Client State in Zustand. Dexie is **not** a note
 | Legal transitions | `noteMachine` | Single source of truth |
 | SOAP edit eligibility | `canEditContent` | Assigned reviewer + ADMIN in `IN_REVIEW`; clinician on reject/amend |
 | Workflow transitions | `noteMachine` guards | ADMIN: all user actions; reviewers: assignment-gated in `IN_REVIEW` |
+
+---
 
 
 ## Related code

@@ -1,0 +1,117 @@
+/* Shared styling for the generated architecture diagrams. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  background: #ffffff;
+}
+#canvas {
+  width: 1560px;
+  padding: 40px 44px 36px;
+  background: #fbfbf9;
+}
+.title { font-size: 27px; font-weight: 700; color: #1c1917; letter-spacing: -0.3px; }
+.subtitle { font-size: 15px; color: #78716c; margin-top: 7px; }
+.footnote { margin-top: 16px; font-size: 12.5px; color: #78716c; text-align: center; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: #f5f5f4;
+  border-radius: 4px;
+  padding: 1px 4px;
+  color: #1c1917;
+}
+
+.col-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: #a8a29e;
+  margin-bottom: 11px;
+}
+
+/* Cards ------------------------------------------------------------------ */
+.panel {
+  border: 1px solid #e3e0d8;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 16px 16px 18px;
+}
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.panel-title { font-size: 17px; font-weight: 700; color: #1c1917; }
+.panel-note { font-size: 12.5px; color: #a8a29e; }
+.rule { height: 3px; border-radius: 3px; margin-bottom: 14px; }
+.rule.client { background: #0f766e; }
+.rule.server { background: #b45309; }
+.rule.core { background: #15803d; }
+
+.card {
+  border: 1px solid #eae7df;
+  border-radius: 10px;
+  padding: 11px 13px;
+  margin-bottom: 9px;
+  background: #fff;
+}
+.card:last-child { margin-bottom: 0; }
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.card-name { font-size: 14.5px; font-weight: 650; color: #1c1917; }
+.card-body { font-size: 12.8px; color: #57534e; margin-top: 5px; line-height: 1.45; }
+
+.pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #57534e;
+  background: #f5f5f4;
+  border: 1px solid #e7e5e4;
+  border-radius: 999px;
+  padding: 2.5px 9px;
+  white-space: nowrap;
+}
+.pill.warn { color: #9a3412; background: #fff7ed; border-color: #fed7aa; }
+.pill.good { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+.pill.bad { color: #9f1239; background: #fff1f2; border-color: #fecdd3; }
+
+/* Arrows ----------------------------------------------------------------- */
+.line { flex: 1; height: 2px; background: #d6d3d1; border-radius: 2px; }
+.head-r { width: 0; height: 0; border-left: 8px solid #78716c; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.head-l { width: 0; height: 0; border-right: 8px solid #78716c; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.head-d {
+  width: 0; height: 0; margin: 0 auto;
+  border-top: 9px solid #78716c; border-left: 6px solid transparent; border-right: 6px solid transparent;
+}
+.vline { width: 2px; height: 16px; background: #d6d3d1; margin: 0 auto; }
+.down { padding: 8px 0 2px; }
+.down-label { font-size: 12px; font-weight: 700; color: #44403c; text-align: center; margin-bottom: 5px; }
+.down-sub { font-size: 11.5px; color: #78716c; text-align: center; margin-top: 4px; }
+
+/* Domain / core accents -------------------------------------------------- */
+.core-box {
+  border: 1.5px solid #86c79b;
+  border-radius: 14px;
+  background: #f4fbf6;
+  padding: 16px 20px;
+}
+.core-name { font-size: 17px; font-weight: 700; color: #14532d; }
+.core-sub { font-size: 13px; color: #3f6b4e; margin-top: 5px; line-height: 1.5; }
+.zero {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #14532d;
+  background: #dcf0e3;
+  border: 1px solid #a7d8b8;
+  border-radius: 999px;
+  padding: 3px 11px;
+}
