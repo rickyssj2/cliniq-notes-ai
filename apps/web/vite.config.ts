@@ -30,4 +30,20 @@ export default defineConfig({
       },
     },
   },
+  // `vite preview` does not inherit `server.proxy`, and the client calls
+  // same-origin `/api` + `/ws` — without this a production build 404s.
+  preview: {
+    port: 4173,
+    proxy: {
+      "/api": {
+        target: "http://localhost:3001",
+        changeOrigin: true,
+      },
+      "/ws": {
+        target: "ws://localhost:3001",
+        ws: true,
+        changeOrigin: true,
+      },
+    },
+  },
 });

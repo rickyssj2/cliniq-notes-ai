@@ -28,6 +28,9 @@ pnpm dev
 | Command | What it does |
 |---|---|
 | `pnpm dev` | Runs the client and the API together |
+| `pnpm preview` | Builds the client and serves the production bundle on `:4173` |
+| `pnpm preview:api` | API for preview with fault injection off |
+| `pnpm preview:api:chaos` | API for preview with fault injection on (default rates) |
 | `pnpm test` | Vitest suites for the domain package and client modules |
 | `pnpm simulate` | Drives the API with concurrent reviewers and edge case scenarios |
 | `pnpm simulate:scenarios` | Runs only the edge case scenarios, which is much faster |
@@ -35,6 +38,29 @@ pnpm dev
 | `pnpm typecheck` | Type checks every package |
 
 The simulation needs a running API, so start with `pnpm dev` or `pnpm dev:api` first.
+
+## Previewing a production build
+
+Development runs an unminified bundle with the React development build, so it is not what you want for a performance or accessibility measurement. Two terminals — pick the API flavour first:
+
+```bash
+# Calm API (for Lighthouse, screenshots, walkthroughs)
+pnpm preview:api
+
+# Or chaos API (same latency / failure / conflict rates as `pnpm dev`)
+pnpm preview:api:chaos
+```
+
+```bash
+pnpm preview        # builds, then serves the bundle on :4173
+```
+
+Open [http://localhost:4173](http://localhost:4173).
+
+- The client calls same-origin `/api` and `/ws`, so `vite.config.ts` carries a `preview.proxy` block alongside `server.proxy` — Vite does not share one with the other, and without it a built app cannot reach the API.
+- Use `preview:api` when measuring. Chaos adds 100 to 800 ms per request and fails roughly one in twenty, which turns a Lighthouse run into noise. Use `preview:api:chaos` when you want the production bundle exercised against the same fault injection as day-to-day development.
+- Everything behind `import.meta.env.DEV` is stripped: the demo controls, the telemetry panel, and the Query client handle are absent by design.
+- For a Lighthouse artifact rather than a screenshot, `npx lighthouse http://localhost:4173/notes --preset=desktop --output=html --output-path=./lighthouse-notes`. Scores taken against localhost are optimistic, since no real network sits in front of the build.
 
 ## How the code is organised
 
