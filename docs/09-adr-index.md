@@ -62,7 +62,7 @@ Short Architecture Decision Records. Each answers: **Chose X over Y because Z.**
 
 **Chose:** `app/pages/widgets/features/entities/shared`.  
 **Over:** Flat `components/` + `hooks/`.  
-**Because:** Interview-visible capability boundaries matching build phases.  
+**Because:** A slice is a whole capability — UI, model, and API calls sit together, so one dev owns a feature end to end instead of editing four shared folders to ship it. That keeps several devs (or teams) out of each other's diffs: autosave, offline queue, and realtime each live in their own slice, and the downward-only import rule means a change inside one cannot quietly reach into another. Shared contracts move to `entities` / `shared` deliberately, which makes cross-team coupling a visible edit rather than an accident.  
 **Tradeoff:** Folder ceremony for a take-home; accepted for clarity.
 
 ---
@@ -94,16 +94,7 @@ Short Architecture Decision Records. Each answers: **Chose X over Y because Z.**
 
 ---
 
-### ADR-11 — Sticky Demo fail latches (transitions / versions)
-
-**Chose:** While `failNext.transitions|versions > 0`, every matching request 500 until Demo Clear.  
-**Over:** One-shot decrement.  
-**Because:** Rollback demos need repeated failures with optional server delay; one-shot cleared before the reviewer could observe optimism.  
-**Tradeoff:** Easy to leave armed — UI badges + Clear control; sim sets `failNext: {}` when stabilizing scenarios.
-
----
-
-### ADR-12 — The core folds its own effects (`applyTransition`)
+### ADR-11 — The core folds its own effects (`applyTransition`)
 
 **Chose:** `can` / `canTransitionTo` return effects, and `applyTransition` folds them into the next `LifecycleState`. Adapters store that and honour `requiresNewVersion`.  
 **Over:** Each adapter switching over `TransitionEffect` itself (what the API store and the web patcher used to do).  

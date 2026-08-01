@@ -8,6 +8,8 @@ Three product realities drive most of the engineering decisions:
 - **Reviewers collide.** Several people work the same queue, so two of them will open the same note within the same minute.
 - **Clinic networks are unreliable.** The app has to stay useful when the connection drops mid sentence and recover cleanly when it returns.
 
+This file is the whole picture in prose. The drawings, request sequences, and the decision records behind each choice live in [`docs/`](docs/00-index.md), and the sections below link to the relevant one as they come up.
+
 ## Running locally
 
 ```bash
@@ -55,10 +57,72 @@ apps/web/src/
   shared/    api client, database, realtime client, telemetry, logging, ui kit
 ```
 
-- Each capability owns its model and its UI, so changing save debouncing does not touch the note entity or the page.
+- Each capability owns its model and its UI, so changing save debouncing does not touch the note entity or the page. One developer ships a feature end to end inside its slice, which is what keeps several people out of each other's diffs.
 - The lifecycle machine lives in `packages/domain` and both hosts import it. The client decides which buttons exist, the server rejects illegal requests.
 - Useful comparison: the machine plays the role of React with pure rules and no side effects, while the client and API are the renderers that apply those rules to a browser and to HTTP.
 - **Tradeoff:** more directories than a small app needs, plus occasional friction when a feature genuinely spans two slices.
+
+The layer rule and the imports it forbids are drawn in [`docs/08-fsd-dependency-map.md`](docs/08-fsd-dependency-map.md).
+
+## Architecture
+
+Everything the client owns sits in one tab, everything authoritative sits behind the API, and the lifecycle machine is the one module both of them import.
+
+```mermaid
+flowchart TB
+  subgraph browser["Browser tab — apps/web"]
+    UI["pages · widgets · features"]
+    ZS["Zustand<br/>drafts · session · presence"]
+    TQ["TanStack Query<br/>notes · versions · events"]
+    DX[("Dexie<br/>mutation queue · parked telemetry")]
+    RT["socket client<br/>dedupe · replay cursor"]
+    TEL["telemetry buffer"]
+  end
+
+  SM["packages/domain · noteMachine<br/>pure rules · no I/O"]
+
+  subgraph api["apps/api — Hono"]
+    REST["REST routes<br/>bearer verified"]
+    WS["WebSocket hub"]
+    STORE[("in-memory store<br/>notes · versions · events")]
+  end
+
+  UI --> ZS
+  UI --> TQ
+  UI -- "can · getAvailableActions" --> SM
+  TQ -- "REST" --> REST
+  ZS -- "queued intent" --> DX
+  DX -- "drain on reconnect" --> REST
+  TEL -- "batches" --> REST
+  WS -- "status · version · presence" --> RT
+  RT -- "idempotent patch" --> TQ
+  REST --> STORE
+  WS --> STORE
+  REST -- "can · applyTransition" --> SM
+```
+
+- A save travels draft in Zustand, optimistic patch into Query, POST with the base version, then either an acknowledgement, a conflict that opens the merge UI, or a queued write in IndexedDB that drains on reconnect.
+- Both arrows into the machine matter: the browser asks it what to offer and predicts the outcome, the API asks it the same question and is the only answer that counts.
+- The core hands back the next lifecycle state rather than calling out to storage, so there is no driven port to implement on either side.
+
+![Ports and adapters — one core, three drivers](docs/images/hexagonal-architecture.png)
+
+The honest scope of that claim, including what is deliberately not hexagonal, is in [`docs/01-hexagonal-architecture.md`](docs/01-hexagonal-architecture.md).
+
+### Deeper documentation
+
+| Document | What it covers |
+|---|---|
+| [`docs/00-index.md`](docs/00-index.md) | Index of everything below, plus how the diagrams are regenerated |
+| [`docs/01-hexagonal-architecture.md`](docs/01-hexagonal-architecture.md) | The lifecycle core as ports and adapters, and where the pattern stops |
+| [`docs/02-state-layers.md`](docs/02-state-layers.md) | Which store owns which data and how long it survives |
+| [`docs/03-note-lifecycle-state-machine.md`](docs/03-note-lifecycle-state-machine.md) | The status graph read out of the transition table, and how effects are folded |
+| [`docs/04-sequence-save-happy-path.md`](docs/04-sequence-save-happy-path.md) | Coalesced autosave from keystroke to acknowledgement |
+| [`docs/05-sequence-conflict-409.md`](docs/05-sequence-conflict-409.md) | A stale base version through to a resolved three way merge |
+| [`docs/06-sequence-offline-queue.md`](docs/06-sequence-offline-queue.md) | Queueing writes offline and draining them in order |
+| [`docs/07-realtime-reconcile.md`](docs/07-realtime-reconcile.md) | Duplicate events, replay after reconnect, and reconciling against a dirty draft |
+| [`docs/08-fsd-dependency-map.md`](docs/08-fsd-dependency-map.md) | The client layers and the import direction they must obey |
+| [`docs/09-adr-index.md`](docs/09-adr-index.md) | Eleven decision records, each as chose, over, because, tradeoff |
 
 ## The note lifecycle
 
@@ -127,9 +191,13 @@ Supervision needs an escape hatch, because reviewers go off shift with notes sti
 - Still enforced: the lifecycle itself, so no jumping from generating to approved, and the 24 hour amendment window.
 - **Tradeoff:** break-glass is powerful and easy to misuse. Production needs an audit trail recording every override with the acting identity and a reason. The review timeline already records who moved a note and when, which is the foundation for that.
 
+How a transition's effects are folded into the next lifecycle state, and why that fold belongs to the core rather than each caller, is in [`docs/03-note-lifecycle-state-machine.md`](docs/03-note-lifecycle-state-machine.md).
+
 ## Where state lives
 
 State is split by who owns it and how long it should survive, not by which component reads it.
+
+![State topology — who owns what, and for how long](docs/images/state-layers.png)
 
 | Layer | Owns | Deliberately does not own |
 |---|---|---|
@@ -144,6 +212,8 @@ State is split by who owns it and how long it should survive, not by which compo
 - Drafts stay out of the query cache so a background refetch can never discard in progress edits.
 - IndexedDB stores intent rather than data, which keeps the offline story small.
 - **Tradeoff:** a note never opened while online is not available offline.
+
+The same split with the per field reasoning is in [`docs/02-state-layers.md`](docs/02-state-layers.md).
 
 ## Saving, autosave, and conflicts
 
@@ -162,6 +232,8 @@ Two races get explicit handling because both looked like data loss in testing:
 - **Live event arriving before its own HTTP response.** The client recognises its own echo and reconciles quietly instead of raising a conflict against the reviewer's own work.
 - Every mutation carries a client generated id the server remembers, so retries, queue drains, and double clicks cannot duplicate versions or transitions.
 
+Both paths are drawn step by step in [`docs/04-sequence-save-happy-path.md`](docs/04-sequence-save-happy-path.md) and [`docs/05-sequence-conflict-409.md`](docs/05-sequence-conflict-409.md).
+
 ## Working offline
 
 - Reads come from the query cache, retained for 35 minutes, so notes already opened stay available.
@@ -174,6 +246,8 @@ Two races get explicit handling because both looked like data loss in testing:
 - Failures that look transient stay queued for a later attempt.
 - **Known limit:** queued clinical text sits unencrypted in IndexedDB. A shared clinical workstation needs encryption at rest and a retention policy.
 
+The enqueue and drain sequence is in [`docs/06-sequence-offline-queue.md`](docs/06-sequence-offline-queue.md).
+
 ## Live collaboration
 
 - One WebSocket per tab carries status changes, new versions, and presence.
@@ -183,6 +257,8 @@ Two races get explicit handling because both looked like data loss in testing:
 - HTTP responses and live events may arrive in either order, so both paths are idempotent.
 - A colleague's save on a note with no local edits updates the editor and tells the reviewer what happened, because content changing silently under the cursor is alarming. With local edits present, the merge UI opens instead.
 - Scrolling a note out of view unsubscribes from its events but does not drop presence, since scrolling a list is not leaving the note you have open.
+
+Deduplication, the replay cursor, and reconciliation against a dirty draft are drawn in [`docs/07-realtime-reconcile.md`](docs/07-realtime-reconcile.md).
 
 ## Roles and authorization
 

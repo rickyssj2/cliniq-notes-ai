@@ -11,7 +11,7 @@
 | [06-sequence-offline-queue.md](./06-sequence-offline-queue.md)             | Dexie outbox drain                             |
 | [07-realtime-reconcile.md](./07-realtime-reconcile.md)                     | WS dedupe, replay cursor, draft reconciliation |
 | [08-fsd-dependency-map.md](./08-fsd-dependency-map.md)                     | FSD layers & import rule                       |
-| [09-adr-index.md](./09-adr-index.md)                                       | 12 tradeoff ADRs (incl. demo JWT, sticky fail) |
+| [09-adr-index.md](./09-adr-index.md)                                       | 11 tradeoff ADRs (incl. demo JWT, effect folding) |
 
 
 
