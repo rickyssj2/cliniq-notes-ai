@@ -172,15 +172,12 @@ export function NoteActionBar({ note }: Props) {
   );
 
   const applyOptimistic = (
-    to: NoteDetail["status"],
     action: NoteAction,
     clientMutationId: string,
     reason?: string,
   ) => {
-    const at = new Date().toISOString();
-    const snapshot = applyOptimisticDetailTransition(queryClient, {
+    const outcome = applyOptimisticDetailTransition(queryClient, {
       note,
-      to,
       action,
       actor: {
         id: actor.id,
@@ -189,29 +186,13 @@ export function NoteActionBar({ note }: Props) {
       },
       reason,
       clientMutationId,
-      at,
+      at: new Date().toISOString(),
     });
 
-    const assignedReviewer =
-      action === "start_review"
-        ? {
-            id: actor.id,
-            displayName: actor.displayName,
-            role: actor.role,
-          }
-        : action === "return" || action === "approve" || action === "reject"
-          ? null
-          : note.assignedReviewer;
+    if (!outcome) return undefined;
 
-    patchList({
-      ...note,
-      status: to,
-      assignedReviewer,
-      updatedAt: at,
-      approvedAt: action === "approve" ? at : note.approvedAt,
-    });
-
-    return snapshot;
+    patchList({ ...note, ...outcome.patch });
+    return outcome.snapshot;
   };
 
   const run = async (action: NoteAction, reason?: string) => {
@@ -239,12 +220,7 @@ export function NoteActionBar({ note }: Props) {
           to: target.to,
         });
 
-        const snapshot = applyOptimistic(
-          target.to,
-          action,
-          clientMutationId,
-          reason,
-        );
+        const snapshot = applyOptimistic(action, clientMutationId, reason);
 
         const queue = async () => {
           await enqueueTransition({

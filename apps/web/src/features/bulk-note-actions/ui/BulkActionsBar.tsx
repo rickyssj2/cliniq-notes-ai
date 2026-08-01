@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { can as machineCan, type Role } from "@soulside/domain";
 import {
   transitionNote,
+  transitionPatch,
   useNoteSelectionStore,
   usePatchNoteInLists,
   type NoteSummary,
@@ -26,11 +27,10 @@ function eligibleFor(
   note: NoteSummary,
   actor: { id: string; role: Role },
 ) {
-  const action = kind === "start_review" ? "start_review" : "regenerate";
-  return machineCan(action, {
+  return machineCan(kind, {
     status: note.status,
     assignedReviewerId: note.assignedReviewer?.id ?? null,
-    approvedAt: null,
+    approvedAt: note.approvedAt,
     now: new Date().toISOString(),
     actor: { id: actor.id, role: actor.role },
     mfaVerified: true,
@@ -94,27 +94,23 @@ export function BulkActionsBar({ notesById }: Props) {
 
       const results = await Promise.allSettled(
         eligible.map(async (note) => {
-          const to = kind === "start_review" ? "IN_REVIEW" : "GENERATING";
-          const optimistic: NoteSummary = {
-            ...note,
-            status: to,
-            assignedReviewer:
-              kind === "start_review"
-                ? {
-                    id: actor.id,
-                    displayName: actor.displayName,
-                    role: actor.role,
-                  }
-                : null,
-            approvedAt: note.approvedAt ?? null,
-            updatedAt: new Date().toISOString(),
-          };
-          patchNote(optimistic);
+          const patch = transitionPatch({
+            note,
+            action: kind,
+            actor,
+            at: new Date().toISOString(),
+          });
+          // Eligibility was checked above; a rejection here means the note
+          // moved (peer edit / WS) between selection and dispatch.
+          if (!patch) {
+            throw new Error(`${note.id} is no longer eligible for ${kind}`);
+          }
+          patchNote({ ...note, ...patch });
 
           try {
             const result = await transitionNote({
               noteId: note.id,
-              to,
+              to: patch.status,
               actorId: actor.id,
               clientMutationId: `bulk_${kind}_${note.id}_${crypto.randomUUID()}`,
               mfaVerified: true,

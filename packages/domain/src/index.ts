@@ -26,7 +26,6 @@ export {
   findTransition,
   outgoingUserTransitions,
   can,
-  transition,
   applyServerStatusChange,
   getAvailableActions,
   isContentReadOnly,

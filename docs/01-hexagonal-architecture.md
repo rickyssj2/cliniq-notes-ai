@@ -5,9 +5,9 @@
 | Hexagonal rule | Here? |
 |---|---|
 | Domain has no UI / DB / HTTP | **Yes** — `packages/domain` |
-| Outside enters via a port | **Mostly** — `can` / `transition` / `getAvailableActions` |
+| Outside enters via a port | **Yes** — `can` / `getAvailableActions` / `applyServerStatusChange` |
 | UI and API share the same core | **Yes** |
-| Formal outbound Port interfaces (`NoteRepository`) | **Soft** — domain returns `TransitionEffect[]`; adapters apply them |
+| Formal outbound Port interfaces (`NoteRepository`) | **No** — the core returns `TransitionEffect[]`; both adapters apply them (functional core / imperative shell) |
 | Every feature (list, WS, telemetry) is hexagonal | **No** — FSD + Query/Zustand around the core |
 
 *“Hexagonal core for note lifecycle; the rest is FSD + state topology.”*
@@ -22,6 +22,7 @@
 
 | Hexagon idea | Path |
 |---|---|
-| Core | `packages/domain/src/note-machine/` |
-| Driving | `apps/web/src/features/transition-note/` |
-| Driven | `apps/api` store + REST/WS |
+| Core (pure rules, no I/O) | `packages/domain/src/note-machine/` |
+| Driving adapter — UI | `apps/web/src/features/transition-note/` |
+| Driving adapter — API | `apps/api` store + REST/WS |
+| Driven ports | **None** — the core never calls out; it returns `TransitionEffect[]` and the caller applies them |

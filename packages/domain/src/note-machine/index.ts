@@ -13,7 +13,6 @@ export { NOTE_ACTIONS, AMEND_GRACE_MS } from "./types";
 export { TRANSITIONS, findTransition, outgoingUserTransitions } from "./transitions";
 export {
   can,
-  transition,
   applyServerStatusChange,
   getAvailableActions,
   isContentReadOnly,

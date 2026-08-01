@@ -19,7 +19,13 @@ function withDefaults(
 }
 
 /**
- * Validate whether `action` may fire in this context.
+ * Validate whether `action` may fire in this context, and return the resulting
+ * status plus effects for the caller to apply. Machine state lives with the
+ * caller, so validating and "performing" a transition are the same call.
+ *
+ * User intent and server-driven events both come through here; `ctx.source`
+ * is the only difference, so there is no laxer path for remote changes.
+ *
  * Components must call this (or use getAvailableActions) — never hard-code status checks.
  */
 export function can(
@@ -56,15 +62,6 @@ export function can(
     to: def.to,
     effects: def.effects(full),
   };
-}
-
-/** Apply a validated transition. Same path for user intent and server-driven events. */
-export function transition(
-  action: NoteAction,
-  ctx: Omit<MachineContext, "now" | "source"> &
-    Partial<Pick<MachineContext, "now" | "source">>,
-): TransitionResult {
-  return can(action, ctx);
 }
 
 /**

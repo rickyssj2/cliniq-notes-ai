@@ -10,7 +10,6 @@ export type {
 
 export {
   can,
-  transition,
   applyServerStatusChange,
   getAvailableActions,
   isContentReadOnly,
@@ -75,5 +74,10 @@ export {
   isLocalReviewEventId,
   mergeReviewEvent,
   reconcileLocalReviewEvent,
+  type OptimisticTransitionOutcome,
 } from "./lib/optimistic-transition";
+export {
+  transitionPatch,
+  type TransitionPatch,
+} from "./lib/transition-patch";
 export { NoteStatusBadge } from "./ui/NoteStatusBadge";

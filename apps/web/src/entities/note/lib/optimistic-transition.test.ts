@@ -50,7 +50,6 @@ describe("optimistic ReviewEvent reconcile", () => {
 
     applyOptimisticDetailTransition(qc, {
       note,
-      to: "IN_REVIEW",
       action: "start_review",
       actor,
       clientMutationId,
@@ -59,6 +58,8 @@ describe("optimistic ReviewEvent reconcile", () => {
 
     const afterOpt = qc.getQueryData<NoteDetail>(notesQueryKeys.detail(note.id));
     expect(afterOpt?.status).toBe("IN_REVIEW");
+    // Assignment comes from the machine's assign_reviewer effect.
+    expect(afterOpt?.assignedReviewer).toEqual(actor);
     expect(afterOpt?.review.events).toHaveLength(1);
     expect(afterOpt?.review.events[0]?.id).toBe(
       localReviewEventId(clientMutationId),
@@ -95,18 +96,59 @@ describe("optimistic ReviewEvent reconcile", () => {
     const qc = new QueryClient();
     const note = detailFixture();
     qc.setQueryData(notesQueryKeys.detail(note.id), note);
-    const snapshot = applyOptimisticDetailTransition(qc, {
+    const outcome = applyOptimisticDetailTransition(qc, {
       note,
-      to: "IN_REVIEW",
       action: "start_review",
       actor,
       clientMutationId: "ui_fail",
     });
-    expect(snapshot).toBeTruthy();
-    rollbackDetailTransition(qc, note.id, snapshot!);
+    expect(outcome).toBeTruthy();
+    rollbackDetailTransition(qc, note.id, outcome!.snapshot);
     expect(qc.getQueryData<NoteDetail>(notesQueryKeys.detail(note.id))).toEqual(
-      snapshot,
+      outcome!.snapshot,
     );
+  });
+
+  it("returns null and leaves caches untouched when the machine rejects", () => {
+    const qc = new QueryClient();
+    const note = detailFixture({ status: "LOCKED" });
+    qc.setQueryData(notesQueryKeys.detail(note.id), note);
+
+    const outcome = applyOptimisticDetailTransition(qc, {
+      note,
+      action: "start_review",
+      actor,
+      clientMutationId: "ui_illegal",
+    });
+
+    expect(outcome).toBeNull();
+    expect(qc.getQueryData<NoteDetail>(notesQueryKeys.detail(note.id))).toEqual(
+      note,
+    );
+  });
+
+  it("clears the reviewer on approve and stamps approvedAt from effects", () => {
+    const qc = new QueryClient();
+    const note = detailFixture({
+      status: "IN_REVIEW",
+      assignedReviewer: actor,
+    });
+    qc.setQueryData(notesQueryKeys.detail(note.id), note);
+    const at = "2025-01-01T02:00:00.000Z";
+
+    const outcome = applyOptimisticDetailTransition(qc, {
+      note,
+      action: "approve",
+      actor,
+      clientMutationId: "ui_approve",
+      at,
+    });
+
+    expect(outcome?.patch).toMatchObject({
+      status: "APPROVED",
+      assignedReviewer: null,
+      approvedAt: at,
+    });
   });
 
   it("mergeReviewEvent replaces matching local row when WS arrives first", () => {

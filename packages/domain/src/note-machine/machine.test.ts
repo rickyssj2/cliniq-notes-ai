@@ -7,7 +7,6 @@ import {
   getLifecycleBanner,
   isContentReadOnly,
   canEditContent,
-  transition,
   TRANSITIONS,
   type MachineContext,
   type NoteAction,
@@ -45,12 +44,12 @@ describe("transition table completeness", () => {
 
 describe("auto generation transitions", () => {
   it("GENERATING → READY_FOR_REVIEW on generation.complete", () => {
-    const result = transition("generation.complete", base({ status: "GENERATING" }));
+    const result = can("generation.complete", base({ status: "GENERATING" }));
     expect(result).toMatchObject({ ok: true, to: "READY_FOR_REVIEW" });
   });
 
   it("GENERATING → FAILED on generation.error", () => {
-    const result = transition("generation.error", base({ status: "GENERATING" }));
+    const result = can("generation.error", base({ status: "GENERATING" }));
     expect(result).toMatchObject({ ok: true, to: "FAILED" });
   });
 
@@ -67,7 +66,7 @@ describe("regenerate", () => {
   it.each(["CLINICIAN", "ADMIN"] as Role[])(
     "allows %s to regenerate from FAILED",
     (role) => {
-      const result = transition(
+      const result = can(
         "regenerate",
         base({ status: "FAILED", actor: actor("u1", role) }),
       );
@@ -96,7 +95,7 @@ describe("regenerate", () => {
 
 describe("start_review", () => {
   it("READY_FOR_REVIEW → IN_REVIEW and assigns the reviewer", () => {
-    const result = transition(
+    const result = can(
       "start_review",
       base({ status: "READY_FOR_REVIEW", actor: actor("dr_a", "REVIEWER") }),
     );
@@ -111,7 +110,7 @@ describe("start_review", () => {
   });
 
   it("AMENDED → IN_REVIEW for a reviewer", () => {
-    const result = transition(
+    const result = can(
       "start_review",
       base({ status: "AMENDED", actor: actor("dr_b", "REVIEWER") }),
     );
@@ -131,7 +130,7 @@ describe("start_review", () => {
   });
 
   it("allows ADMIN to start review and self-assign", () => {
-    const result = transition(
+    const result = can(
       "start_review",
       base({ status: "READY_FOR_REVIEW", actor: actor("adm", "ADMIN") }),
     );
@@ -156,7 +155,7 @@ describe("IN_REVIEW actions", () => {
     });
 
   it("assigned reviewer can return → READY_FOR_REVIEW and release lock", () => {
-    const result = transition("return", inReview());
+    const result = can("return", inReview());
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.to).toBe("READY_FOR_REVIEW");
@@ -180,7 +179,7 @@ describe("IN_REVIEW actions", () => {
     expect(denied.ok).toBe(false);
     if (!denied.ok) expect(denied.reason).toMatch(/MFA/);
 
-    const allowed = transition("approve", inReview({ mfaVerified: true }));
+    const allowed = can("approve", inReview({ mfaVerified: true }));
     expect(allowed.ok).toBe(true);
     if (allowed.ok) {
       expect(allowed.to).toBe("APPROVED");
@@ -192,7 +191,7 @@ describe("IN_REVIEW actions", () => {
   });
 
   it("approve skips MFA when source is server", () => {
-    const result = transition(
+    const result = can(
       "approve",
       inReview({ source: "server", mfaVerified: false }),
     );
@@ -204,7 +203,7 @@ describe("IN_REVIEW actions", () => {
     expect(denied.ok).toBe(false);
     if (!denied.ok) expect(denied.reason).toMatch(/reason/);
 
-    const allowed = transition(
+    const allowed = can(
       "reject",
       inReview({ reason: "missing plan" }),
     );
@@ -213,23 +212,23 @@ describe("IN_REVIEW actions", () => {
 
   it("ADMIN can return, approve, and reject without being assigned", () => {
     const ctx = inReview({ actor: actor("adm", "ADMIN"), mfaVerified: false });
-    expect(transition("return", ctx)).toMatchObject({
+    expect(can("return", ctx)).toMatchObject({
       ok: true,
       to: "READY_FOR_REVIEW",
     });
-    expect(transition("approve", ctx)).toMatchObject({
+    expect(can("approve", ctx)).toMatchObject({
       ok: true,
       to: "APPROVED",
     });
     expect(
-      transition("reject", { ...ctx, reason: "admin override" }),
+      can("reject", { ...ctx, reason: "admin override" }),
     ).toMatchObject({ ok: true, to: "REJECTED" });
   });
 });
 
 describe("resubmit", () => {
   it("CLINICIAN can resubmit REJECTED → READY_FOR_REVIEW with new version effect", () => {
-    const result = transition(
+    const result = can(
       "resubmit",
       base({ status: "REJECTED", actor: actor("c1", "CLINICIAN") }),
     );
@@ -241,7 +240,7 @@ describe("resubmit", () => {
   });
 
   it("ADMIN can resubmit REJECTED → READY_FOR_REVIEW", () => {
-    const result = transition(
+    const result = can(
       "resubmit",
       base({ status: "REJECTED", actor: actor("adm", "ADMIN") }),
     );
@@ -259,7 +258,7 @@ describe("resubmit", () => {
 
 describe("amend and lock grace window", () => {
   it("allows CLINICIAN amend within 24h", () => {
-    const result = transition(
+    const result = can(
       "amend",
       base({
         status: "APPROVED",
@@ -299,7 +298,7 @@ describe("amend and lock grace window", () => {
     );
     expect(tooEarly.ok).toBe(false);
 
-    const locked = transition(
+    const locked = can(
       "grace_expired",
       base({ status: "APPROVED", approvedAt: APPROVED_STALE }),
     );
@@ -307,7 +306,7 @@ describe("amend and lock grace window", () => {
   });
 
   it("server can force grace_expired before window elapses", () => {
-    const result = transition(
+    const result = can(
       "grace_expired",
       base({
         status: "APPROVED",

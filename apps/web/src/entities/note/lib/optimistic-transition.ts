@@ -9,6 +9,7 @@ import type {
   VersionRef,
 } from "@soulside/domain";
 import { notesQueryKeys } from "../api/query-keys";
+import { transitionPatch, type TransitionPatch } from "./transition-patch";
 
 export function localReviewEventId(clientMutationId: string): string {
   return `local_${clientMutationId}`;
@@ -86,7 +87,6 @@ export function buildLocalReviewEvent(input: {
 
 export type OptimisticTransitionInput = {
   note: NoteDetail;
-  to: NoteStatus;
   action: NoteAction;
   actor: UserRef;
   reason?: string;
@@ -94,35 +94,39 @@ export type OptimisticTransitionInput = {
   at?: string;
 };
 
-function nextAssignee(
-  note: NoteDetail,
-  action: NoteAction,
-  actor: UserRef,
-): NoteDetail["assignedReviewer"] {
-  if (action === "start_review") return actor;
-  if (action === "return" || action === "approve" || action === "reject") {
-    return null;
-  }
-  return note.assignedReviewer;
-}
+export type OptimisticTransitionOutcome = {
+  /** Prior detail for rollback. */
+  snapshot: NoteDetail;
+  /** Machine-derived fields, reusable for the list caches. */
+  patch: TransitionPatch;
+};
 
-/** Apply status + local ReviewEvent to detail cache. Returns prior snapshot. */
+/**
+ * Apply machine-derived fields + a local ReviewEvent to the detail cache.
+ * Returns null when the machine rejects the action, leaving caches untouched.
+ */
 export function applyOptimisticDetailTransition(
   queryClient: QueryClient,
   input: OptimisticTransitionInput,
-): NoteDetail | undefined {
+): OptimisticTransitionOutcome | null {
   const detailKey = notesQueryKeys.detail(input.note.id);
   const snapshot = queryClient.getQueryData<NoteDetail>(detailKey);
   const at = input.at ?? new Date().toISOString();
-  const fromStatus = input.note.status;
-  const assignedReviewer = nextAssignee(input.note, input.action, input.actor);
-  const approvedAt =
-    input.action === "approve" ? at : input.note.approvedAt;
+  const patch = transitionPatch({
+    note: input.note,
+    action: input.action,
+    actor: input.actor,
+    reason: input.reason,
+    at,
+  });
+
+  if (!patch) return null;
+
   const localEvent = buildLocalReviewEvent({
     noteId: input.note.id,
     versionId: input.note.currentVersion.id,
-    fromStatus,
-    toStatus: input.to,
+    fromStatus: input.note.status,
+    toStatus: patch.status,
     actor: input.actor,
     reason: input.reason,
     clientMutationId: input.clientMutationId,
@@ -136,15 +140,12 @@ export function applyOptimisticDetailTransition(
     );
     return {
       ...base,
-      status: input.to,
-      assignedReviewer,
-      approvedAt,
-      updatedAt: at,
+      ...patch,
       review: { events: [...withoutDupLocal, localEvent] },
     };
   });
 
-  return snapshot ?? structuredClone(input.note);
+  return { snapshot: snapshot ?? structuredClone(input.note), patch };
 }
 
 export function reconcileDetailTransition(
