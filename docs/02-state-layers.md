@@ -30,5 +30,6 @@ Server entities do **not** live in Zustand. Dexie is **not** a notes cache — o
 ## Related code
 
 - `apps/web/src/shared/api/query-client.ts`
+- `apps/web/src/shared/offline/`
 - `apps/web/src/features/offline-queue/`
 - `apps/web/src/features/autosave-note/`

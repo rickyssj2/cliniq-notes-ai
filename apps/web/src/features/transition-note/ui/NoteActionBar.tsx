@@ -21,7 +21,7 @@ import {
   subscribeQueueStats,
   useEffectiveOnline,
   countPendingForNote,
-} from "@features/offline-queue";
+} from "@shared/offline";
 import { ApiError } from "@shared/api";
 import {
   mintCorrelationId,

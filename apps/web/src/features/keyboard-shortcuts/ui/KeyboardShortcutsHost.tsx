@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import type { SoapSection } from "@soulside/domain";
 import { useConflictStore } from "@entities/note";
-import { useAutosavePreferenceStore } from "@features/autosave-note";
-import { TOGGLE_DEMO_EVENT } from "@features/demo-controls";
-import { TOGGLE_TELEMETRY_EVENT } from "@features/telemetry-debug";
+import { TOGGLE_DEMO_EVENT, TOGGLE_TELEMETRY_EVENT } from "@shared/devtools-events";
+import { useAutosavePreferenceStore } from "@shared/prefs";
 import { isApplePlatform } from "@shared/lib";
 import { Button } from "@shared/ui/button";
 

@@ -6,8 +6,8 @@ import {
 import { NotesFilters, useNotesListSearchParams } from "@features/filter-notes";
 import { BulkActionsBar } from "@features/bulk-note-actions";
 import { useDemoControlsStore } from "@features/demo-controls";
-import { useEffectiveOnline } from "@features/offline-queue";
 import { isNetworkError } from "@shared/api";
+import { useEffectiveOnline } from "@shared/offline";
 import { NotesTable } from "@widgets/notes-table";
 
 export function NotesListPage() {

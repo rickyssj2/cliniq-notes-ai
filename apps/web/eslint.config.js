@@ -2,24 +2,35 @@ import boundaries from "eslint-plugin-boundaries";
 import tseslint from "typescript-eslint";
 
 /**
- * FSD layer rule (see docs/08-fsd-dependency-map.md):
+ * Strict FSD (docs/08-fsd-dependency-map.md):
  *   app → pages → widgets → features → entities → shared
  *
- * Same-layer imports are allowed — the codebase shares cross-feature helpers
- * (offline queue, autosave preference) and the we only forbid upward edges.
- * External packages (including @soulside/domain) are not classified, so they
- * pass through.
+ * A slice may import lower layers, or the same slice. Sibling slices on the
+ * same layer are illegal. `app` and `shared` have segments, not slices —
+ * cross-segment imports within those layers are allowed.
+ *
+ * External packages (including @soulside/domain) are unclassified and pass.
  */
-const LAYERS = ["app", "pages", "widgets", "features", "entities", "shared"];
 
-function allowBelow(from) {
-  const fromIndex = LAYERS.indexOf(from);
+/** Lower layers only (no same-layer siblings). */
+function allowLowerLayers(from, lowerTypes) {
   return {
     from: { element: { type: from } },
     allow: {
+      to: { element: { types: { anyOf: lowerTypes } } },
+    },
+  };
+}
+
+/** Same slice via captured `slice` name (alias or relative into the same folder). */
+function allowSameSlice(layer) {
+  return {
+    from: { element: { type: layer } },
+    allow: {
       to: {
         element: {
-          types: LAYERS.slice(fromIndex),
+          type: layer,
+          captured: { slice: "{{ from.element.captured.slice }}" },
         },
       },
     },
@@ -50,19 +61,17 @@ export default tseslint.config(
         },
       },
       "boundaries/include": ["src/**/*"],
-      // Entry sits above the layers; tests may reach siblings for fixtures.
       "boundaries/ignore": [
         "src/main.tsx",
         "src/**/*.test.ts",
         "src/**/*.test.tsx",
       ],
       "boundaries/elements": [
-        { type: "app", pattern: "src/app/*" },
+        { type: "app", pattern: "src/app/*", capture: ["segment"] },
         { type: "pages", pattern: "src/pages/*", capture: ["slice"] },
         { type: "widgets", pattern: "src/widgets/*", capture: ["slice"] },
         { type: "features", pattern: "src/features/*", capture: ["slice"] },
         { type: "entities", pattern: "src/entities/*", capture: ["slice"] },
-        // shared has segments (ui, api, …), not slices — one element for the layer.
         { type: "shared", pattern: "src/shared/*", capture: ["segment"] },
       ],
     },
@@ -71,9 +80,49 @@ export default tseslint.config(
         "error",
         {
           default: "disallow",
-          policies: LAYERS.map(allowBelow),
+          policies: [
+            {
+              from: { element: { type: "app" } },
+              allow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: [
+                        "app",
+                        "pages",
+                        "widgets",
+                        "features",
+                        "entities",
+                        "shared",
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            allowLowerLayers("pages", [
+              "widgets",
+              "features",
+              "entities",
+              "shared",
+            ]),
+            allowSameSlice("pages"),
+            allowLowerLayers("widgets", ["features", "entities", "shared"]),
+            allowSameSlice("widgets"),
+            allowLowerLayers("features", ["entities", "shared"]),
+            allowSameSlice("features"),
+            allowLowerLayers("entities", ["shared"]),
+            allowSameSlice("entities"),
+            {
+              from: { element: { type: "shared" } },
+              allow: {
+                to: { element: { type: "shared" } },
+              },
+            },
+          ],
         },
       ],
     },
   },
 );
+

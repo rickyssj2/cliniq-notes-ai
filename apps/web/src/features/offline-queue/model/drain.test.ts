@@ -4,13 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@shared/api";
 import { db } from "@shared/db";
 import { useNoticeStore } from "@shared/notices";
-import { useConnectivityStore } from "./connectivity-store";
+import { useConnectivityStore } from "@shared/offline";
 import {
   countPendingMutations,
   enqueueCreateVersion,
   enqueueTransition,
   listDrainable,
-} from "./mutation-queue";
+} from "@shared/offline";
 
 const transitionNote = vi.hoisted(() => vi.fn());
 const saveNoteVersion = vi.hoisted(() => vi.fn());

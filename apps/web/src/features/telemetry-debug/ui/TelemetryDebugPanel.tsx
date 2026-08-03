@@ -6,17 +6,15 @@ import {
   track,
 } from "@shared/telemetry";
 import { getLastCorrelationId } from "@shared/correlation";
+import { TOGGLE_TELEMETRY_EVENT } from "@shared/devtools-events";
 import { apiFetch } from "@shared/api";
 import { Button } from "@shared/ui/button";
-
-export const TOGGLE_TELEMETRY_EVENT = "soulside:toggle-telemetry";
 
 /**
  * Dev-only panel: queue/batch/park counts — never shows event props (PII).
  * Toggle with `T` or the FAB button.
  */
-export function TelemetryDebugPanel() {
-  const [open, setOpen] = useState(false);
+export function TelemetryDebugPanel() {  const [open, setOpen] = useState(false);
   const stats = useSyncExternalStore(
     subscribeTelemetryStats,
     getTelemetryStats,

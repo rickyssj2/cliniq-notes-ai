@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router";
 import { useNoteDetailQuery } from "@entities/note";
-import { useEffectiveOnline } from "@features/offline-queue";
 import { ApiError, isNetworkError } from "@shared/api";
+import { useEffectiveOnline } from "@shared/offline";
 import { NoteWorkspace } from "@widgets/note-workspace";
 
 export function NoteDetailPage() {

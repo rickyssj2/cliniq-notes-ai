@@ -14,19 +14,20 @@ import {
 import { can as canCapability, useActor } from "@entities/user";
 import { SoapEditor } from "@features/edit-soap";
 import { NoteActionBar } from "@features/transition-note";
-import { useCoalescedAutosave, useAutosavePreferenceStore } from "@features/autosave-note";
+import { useCoalescedAutosave } from "@features/autosave-note";
 import {
   PresenceAvatars,
   useNotePresenceChannel,
 } from "@features/realtime-sync";
+import { NoteHistoryPanel, ReviewTimeline } from "@features/note-history";
+import { useDemoControlsStore } from "@features/demo-controls";
 import {
   getLatestPendingCreateVersion,
   useEffectiveOnline,
   usePendingMutationCount,
   type CreateVersionPayload,
-} from "@features/offline-queue";
-import { NoteHistoryPanel, ReviewTimeline } from "@features/note-history";
-import { useDemoControlsStore } from "@features/demo-controls";
+} from "@shared/offline";
+import { useAutosavePreferenceStore } from "@shared/prefs";
 import { Button } from "@shared/ui/button";
 import { AppErrorBoundary } from "@shared/ui/error-boundary";
 import {

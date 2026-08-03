@@ -6,7 +6,8 @@ type AutosavePreferenceState = {
   setEnabled: (enabled: boolean) => void;
 };
 
-/** Shared so conflict “Keep editing” can pause autosave and stop the modal loop. */
+/** Preference for coalesced autosave. Lives in shared so conflict merge and
+ *  keyboard shortcuts can pause it without importing the autosave feature. */
 export const useAutosavePreferenceStore = create<AutosavePreferenceState>(
   (set) => ({
     enabled: true,

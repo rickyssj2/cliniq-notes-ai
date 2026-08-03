@@ -3,11 +3,9 @@ import { NavLink, Outlet, useLocation } from "react-router";
 import { can, useRole, type Capability } from "@entities/user";
 import { RoleSwitcher } from "@features/switch-role";
 import { RealtimeStatusBadge } from "@features/realtime-sync";
-import {
-  ConnectivityBanner,
-  useEffectiveOnline,
-} from "@features/offline-queue";
+import { ConnectivityBanner } from "@features/offline-queue";
 import { OPEN_SHORTCUTS_EVENT } from "@features/keyboard-shortcuts";
+import { useEffectiveOnline } from "@shared/offline";
 import { AppErrorBoundary } from "@shared/ui/error-boundary";
 import { cn } from "@shared/lib";
 

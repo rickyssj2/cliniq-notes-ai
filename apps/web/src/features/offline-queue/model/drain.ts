@@ -20,8 +20,8 @@ import {
 import { log } from "@shared/logging";
 import { pushNotice } from "@shared/notices";
 import { track } from "@shared/telemetry";
-import { isEffectivelyOnline } from "./connectivity-store";
 import {
+  isEffectivelyOnline,
   listDrainable,
   markFailed,
   markInFlight,
@@ -29,7 +29,7 @@ import {
   touchQueueStats,
   type CreateVersionPayload,
   type TransitionPayload,
-} from "./mutation-queue";
+} from "@shared/offline";
 
 let draining = false;
 

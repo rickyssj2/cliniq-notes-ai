@@ -1,24 +1,3 @@
-export {
-  useConnectivityStore,
-  isEffectivelyOnline,
-  offlineDurationMs,
-} from "./model/connectivity-store";
-export {
-  enqueueCreateVersion,
-  enqueueTransition,
-  getLatestPendingCreateVersion,
-  countPendingForNote,
-  countPendingMutations,
-  listPendingForNote,
-  recoverInFlightMutations,
-  subscribeQueueStats,
-  type CreateVersionPayload,
-  type TransitionPayload,
-} from "./model/mutation-queue";
+export { useOfflineBootstrap } from "./model/hooks";
 export { drainMutationQueue } from "./model/drain";
-export {
-  useOfflineBootstrap,
-  useEffectiveOnline,
-  usePendingMutationCount,
-} from "./model/hooks";
 export { ConnectivityBanner } from "./ui/ConnectivityBanner";

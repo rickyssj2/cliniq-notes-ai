@@ -89,8 +89,8 @@ apps/web/src/
 - Useful comparison: the machine plays the role of React with pure rules and no side effects, while the client and API are the renderers that apply those rules to a browser and to HTTP.
 - **Tradeoff:** more directories than a small app needs, plus occasional friction when a feature genuinely spans two slices.
 
-- The layer rule and the imports it forbids are drawn in [`docs/08-fsd-dependency-map.md`](docs/08-fsd-dependency-map.md).
-- ESLint enforces that rule via `eslint-plugin-boundaries` in `apps/web/eslint.config.js`. Run `pnpm lint`.
+- The layer rule and the imports it forbids are drawn in [`docs/08-fsd-dependency-map.md`](docs/08-fsd-dependency-map.md). ESLint enforces downward layers **and** forbids cross-slice imports on the same layer (`apps/web/eslint.config.js`). Run `pnpm lint`.
+- Shared infrastructure used by more than one feature (offline mutation queue, autosave preference, demo/telemetry toggle event names) lives under `shared/`, not inside a feature barrel.
 
 ## Architecture
 

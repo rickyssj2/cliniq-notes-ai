@@ -20,7 +20,7 @@ import { track } from "@shared/telemetry";
 import {
   enqueueCreateVersion,
   isEffectivelyOnline,
-} from "@features/offline-queue";
+} from "@shared/offline";
 import {
   createCoalescedSaver,
   type CoalescedSaveStatus,

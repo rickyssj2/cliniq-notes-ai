@@ -7,7 +7,7 @@ import {
   useEditorDraftStore,
 } from "@entities/note";
 import { useActor } from "@entities/user";
-import { useAutosavePreferenceStore } from "@features/autosave-note";
+import { useAutosavePreferenceStore } from "@shared/prefs";
 import {
   mintCorrelationId,
   runWithCorrelationAsync,

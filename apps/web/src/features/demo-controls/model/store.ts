@@ -29,5 +29,3 @@ export const useDemoControlsStore = create<DemoControlsState>((set) => ({
   setMessage: (message) => set({ message }),
   clear: () => set({ controls: [], message: null }),
 }));
-
-export const TOGGLE_DEMO_EVENT = "soulside:toggle-demo";

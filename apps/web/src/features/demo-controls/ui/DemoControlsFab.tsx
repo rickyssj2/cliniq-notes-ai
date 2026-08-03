@@ -15,11 +15,9 @@ import {
 import { useSessionStore } from "@entities/user";
 import { ApiError } from "@shared/api";
 import { config } from "@shared/config";
+import { TOGGLE_DEMO_EVENT } from "@shared/devtools-events";
 import { Button } from "@shared/ui/button";
-import {
-  TOGGLE_DEMO_EVENT,
-  useDemoControlsStore,
-} from "../model/store";
+import { useDemoControlsStore } from "../model/store";
 
 const DEFAULT_ACK_DELAY_MS = 2000;
 const MAX_ACK_DELAY_MS = 60_000;

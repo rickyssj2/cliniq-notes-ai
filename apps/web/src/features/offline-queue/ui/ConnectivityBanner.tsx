@@ -1,5 +1,8 @@
-import { useConnectivityStore } from "../model/connectivity-store";
-import { useEffectiveOnline, usePendingMutationCount } from "../model/hooks";
+import {
+  useConnectivityStore,
+  useEffectiveOnline,
+  usePendingMutationCount,
+} from "@shared/offline";
 
 function formatOfflineAge(iso: string | null): string {
   if (!iso) return "";

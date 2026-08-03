@@ -5,7 +5,7 @@ import {
   listPendingForNote,
   subscribeQueueStats,
   type TransitionPayload,
-} from "@features/offline-queue";
+} from "@shared/offline";
 import type { MutationQueueItem } from "@shared/db";
 
 type Props = {
