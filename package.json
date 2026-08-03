@@ -12,6 +12,7 @@
     "preview:api": "CHAOS=0 pnpm --filter @soulside/api start",
     "preview:api:chaos": "pnpm --filter @soulside/api start",
     "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm --filter @soulside/web lint",
     "test": "pnpm -r run test",
     "simulate": "tsx simulate_workflow.ts",
     "simulate:scenarios": "tsx simulate_workflow.ts --scenarios-only",

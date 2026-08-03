@@ -57,7 +57,7 @@ export function useRealtimeNoteSource(sourceId: string, noteIds: string[]) {
   useEffect(() => {
     realtimeClient.setSource(sourceId, noteIds);
     return () => realtimeClient.clearSource(sourceId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- key encodes noteIds
+    // `key` is the stable encoding of `noteIds`; listing both would double-fire.
   }, [sourceId, key]);
 }
 

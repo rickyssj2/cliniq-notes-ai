@@ -36,6 +36,7 @@ pnpm dev
 | `pnpm simulate:scenarios` | Runs only the edge case scenarios, which is much faster |
 | `pnpm test:e2e` | Playwright browser tests, booting the API and client if needed |
 | `pnpm typecheck` | Type checks every package |
+| `pnpm lint` | ESLint — FSD layer import boundaries in `apps/web` |
 
 The simulation needs a running API, so start with `pnpm dev` or `pnpm dev:api` first.
 
@@ -88,7 +89,8 @@ apps/web/src/
 - Useful comparison: the machine plays the role of React with pure rules and no side effects, while the client and API are the renderers that apply those rules to a browser and to HTTP.
 - **Tradeoff:** more directories than a small app needs, plus occasional friction when a feature genuinely spans two slices.
 
-The layer rule and the imports it forbids are drawn in [`docs/08-fsd-dependency-map.md`](docs/08-fsd-dependency-map.md).
+- The layer rule and the imports it forbids are drawn in [`docs/08-fsd-dependency-map.md`](docs/08-fsd-dependency-map.md).
+- ESLint enforces that rule via `eslint-plugin-boundaries` in `apps/web/eslint.config.js`. Run `pnpm lint`.
 
 ## Architecture
 

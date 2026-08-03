@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
     "test": "vitest run"
   },
   "dependencies": {
@@ -31,9 +32,13 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "eslint": "^10.8.0",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-boundaries": "^7.1.0",
     "fake-indexeddb": "^6.2.5",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.8.3",
+    "typescript-eslint": "^8.65.0",
     "vite": "^7.0.2",
     "vitest": "^3.2.4"
   }
